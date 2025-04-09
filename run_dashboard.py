@@ -11,8 +11,8 @@ import argparse
 def main():
     """Run the TTM Interactive Dashboard."""
     parser = argparse.ArgumentParser(description='Run TTM Interactive Dashboard')
-    parser.add_argument('--enhanced', action='store_true',
-                        help='Run the enhanced dashboard')
+    parser.add_argument('--mode', type=str, choices=['basic', 'enhanced', 'comprehensive'], default='comprehensive',
+                        help='Dashboard mode to run (basic, enhanced, or comprehensive)')
     parser.add_argument('--state_history', type=str, default=None,
                         help='Path to state history file')
     parser.add_argument('--model', type=str, default=None,
@@ -21,34 +21,36 @@ def main():
                         help='Port to run the dashboard on')
     parser.add_argument('--debug', action='store_true',
                         help='Run in debug mode')
-    
+
     args = parser.parse_args()
-    
+
     # Build command
     cmd = []
-    
+
     # Python executable
     cmd.append(sys.executable)
-    
+
     # Script to run
-    if args.enhanced:
-        cmd.append('interactive_visualization_enhanced.py')
-    else:
+    if args.mode == 'basic':
         cmd.append('interactive_visualization.py')
-    
+    elif args.mode == 'enhanced':
+        cmd.append('interactive_visualization_enhanced.py')
+    else:  # comprehensive
+        cmd.append('comprehensive_visualization.py')
+
     # Add arguments
     if args.state_history:
         cmd.append(f'--state_history={args.state_history}')
-    
+
     if args.model:
         cmd.append(f'--model={args.model}')
-    
+
     if args.port != 8050:
         cmd.append(f'--port={args.port}')
-    
+
     if args.debug:
         cmd.append('--debug')
-    
+
     # Run command
     cmd_str = ' '.join(cmd)
     print(f"Running: {cmd_str}")
