@@ -379,7 +379,9 @@ def train_model(
                 # Update dashboard with memory and attention visualizations based on example predictions
                 if dashboard:
                     # Get a sample example for visualization
-                    example_input, example_target = dataset.get_example(difficulty_stage=dataset.current_stage)
+                    example_input, example_target = dataset.get_batch(batch_size=1)
+                    example_input = example_input[0]  # Get the first (and only) example
+                    example_target = example_target[0]  # Get the first (and only) example
                     example_input = example_input.unsqueeze(0).to(device)  # Add batch dimension
                     example_target = example_target.unsqueeze(0).to(device)  # Add batch dimension
 
