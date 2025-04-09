@@ -19,7 +19,8 @@ import gc
 from functools import wraps
 from contextlib import contextmanager
 
-from ..models.ttm_model import TokenTuringMachine
+# Import TokenTuringMachine at runtime to avoid circular imports
+TokenTuringMachine = None
 
 
 class FLOPSCounter:
@@ -147,6 +148,11 @@ def measure_flops(
     Returns:
         Number of FLOPS
     """
+    # Import TokenTuringMachine at runtime to avoid circular imports
+    from ..models.ttm_model import TokenTuringMachine as TTM
+    global TokenTuringMachine
+    TokenTuringMachine = TTM
+
     # Set device
     if device is None:
         device = next(model.parameters()).device
@@ -243,6 +249,11 @@ def measure_memory(
     Returns:
         Dictionary with memory usage statistics
     """
+    # Import TokenTuringMachine at runtime to avoid circular imports
+    from ..models.ttm_model import TokenTuringMachine as TTM
+    global TokenTuringMachine
+    TokenTuringMachine = TTM
+
     # Set device
     if device is None:
         device = next(model.parameters()).device
@@ -296,6 +307,11 @@ def benchmark_forward(
     Returns:
         Dictionary with benchmark results
     """
+    # Import TokenTuringMachine at runtime to avoid circular imports
+    from ..models.ttm_model import TokenTuringMachine as TTM
+    global TokenTuringMachine
+    TokenTuringMachine = TTM
+
     # Set device
     if device is None:
         device = next(model.parameters()).device
@@ -357,6 +373,11 @@ def benchmark_sequence_length(
     Returns:
         Dictionary mapping sequence length to benchmark results
     """
+    # Import TokenTuringMachine at runtime to avoid circular imports
+    from ..models.ttm_model import TokenTuringMachine as TTM
+    global TokenTuringMachine
+    TokenTuringMachine = TTM
+
     # Set device
     if device is None:
         device = next(model.parameters()).device
@@ -491,7 +512,7 @@ def compare_cpu_cuda(
 
 
 def compare_ttm_transformer(
-    ttm_model: TokenTuringMachine,
+    ttm_model: nn.Module,
     transformer_model: nn.Module,
     batch_size: int,
     seq_lengths: List[int],
@@ -513,6 +534,10 @@ def compare_ttm_transformer(
     Returns:
         Dictionary with benchmark results for TTM and Transformer
     """
+    # Import TokenTuringMachine at runtime to avoid circular imports
+    from ..models.ttm_model import TokenTuringMachine as TTM
+    global TokenTuringMachine
+    TokenTuringMachine = TTM
     # Set device
     if device is None:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
