@@ -16,6 +16,7 @@ from src.ttm.models.ttm_model import (
     TokenTuringMachine
 )
 from src.ttm.utils.masking import EOSCrossEntropyLoss
+from src.ttm.utils.losses import TTMLoss, LabelSmoothingLoss, FocalLoss
 
 
 class TestTokenEmbedding(unittest.TestCase):
@@ -252,17 +253,52 @@ class TestTokenTuringMachine(unittest.TestCase):
 
     def test_create_loss_fn(self):
         """Test creating a loss function."""
-        # Create loss function
-        loss_fn = self.ttm.create_loss_fn()
+        # Create cross-entropy loss function
+        loss_fn = self.ttm.create_loss_fn(loss_type='cross_entropy')
 
         # Check that it's an instance of EOSCrossEntropyLoss
         self.assertIsInstance(loss_fn, EOSCrossEntropyLoss)
 
         # Create loss function for memory-less model
-        memory_less_loss_fn = self.memory_less_ttm.create_loss_fn()
+        memory_less_loss_fn = self.memory_less_ttm.create_loss_fn(loss_type='cross_entropy')
 
         # Check that it's an instance of EOSCrossEntropyLoss
         self.assertIsInstance(memory_less_loss_fn, EOSCrossEntropyLoss)
+
+    def test_create_ttm_loss_fn(self):
+        """Test creating a TTM loss function."""
+        # Create TTM loss function
+        loss_fn = self.ttm.create_loss_fn(
+            loss_type='ttm',
+            memory_loss_weight=0.1,
+            attention_loss_weight=0.1
+        )
+
+        # Check that it's an instance of TTMLoss
+        self.assertIsInstance(loss_fn, TTMLoss)
+
+    def test_create_label_smoothing_loss_fn(self):
+        """Test creating a label smoothing loss function."""
+        # Create label smoothing loss function
+        loss_fn = self.ttm.create_loss_fn(
+            loss_type='label_smoothing',
+            label_smoothing=0.1
+        )
+
+        # Check that it's an instance of LabelSmoothingLoss
+        self.assertIsInstance(loss_fn, LabelSmoothingLoss)
+
+    def test_create_focal_loss_fn(self):
+        """Test creating a focal loss function."""
+        # Create focal loss function
+        loss_fn = self.ttm.create_loss_fn(
+            loss_type='focal',
+            focal_alpha=0.25,
+            focal_gamma=2.0
+        )
+
+        # Check that it's an instance of FocalLoss
+        self.assertIsInstance(loss_fn, FocalLoss)
 
 
 if __name__ == '__main__':
