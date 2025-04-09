@@ -379,11 +379,17 @@ def train_model(
                 # Update dashboard with memory and attention visualizations based on example predictions
                 if dashboard:
                     # Get a sample example for visualization
-                    example_input, example_target = dataset.get_batch(batch_size=1)
-                    example_input = example_input[0]  # Get the first (and only) example
-                    example_target = example_target[0]  # Get the first (and only) example
-                    example_input = example_input.unsqueeze(0).to(device)  # Add batch dimension
-                    example_target = example_target.unsqueeze(0).to(device)  # Add batch dimension
+                    # Create a temporary dataset with batch size 1 to get a single example
+                    temp_dataset = MultiplicationDataset(
+                        batch_size=1,
+                        max_seq_len=dataset.max_seq_len,
+                        device=device
+                    )
+                    temp_dataset.current_stage = dataset.current_stage
+                    example_input, example_target = temp_dataset.generate_batch()
+                    # No need to add batch dimension as generate_batch already returns tensors with batch dimension
+                    example_input = example_input.to(device)
+                    example_target = example_target.to(device)
 
                     # Forward pass with the example to get memory and attention
                     with torch.no_grad():
