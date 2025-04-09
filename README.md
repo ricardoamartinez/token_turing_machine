@@ -472,100 +472,100 @@ Update the README list by marking each item as complete only after meeting its s
 
 ### Phase 10: Training Loop Implementation
 
-- [ ] **Implement training step**
-  - [ ] Create function for single training step
+- [x] **Implement training step**
+  - [x] Create function for single training step
       - Condition: `train_step(model, batch, optimizer)` function exists
-      - Answer: What parameters does the function accept? _____________
+      - Answer: What parameters does the function accept? The function accepts model, batch, optimizer, loss_fn, scheduler, clip_grad_norm, device, memory, scaler, accumulation_steps, and current_step parameters
       - Git: Create branch with `git checkout -b feature/training-loop`
-  - [ ] Calculate loss and gradients
+  - [x] Calculate loss and gradients
       - Condition: `loss.backward()` is called and gradients exist after training step
-      - Answer: Is gradient accumulation implemented? _____________
+      - Answer: Is gradient accumulation implemented? Yes, gradient accumulation is implemented by scaling the loss by 1/accumulation_steps and only updating the model parameters after accumulation_steps iterations
       - Git: Commit with `git commit -m "Implement loss calculation and backpropagation"`
-  - [ ] Apply gradient clipping
+  - [x] Apply gradient clipping
       - Condition: `torch.nn.utils.clip_grad_norm_` is called
-      - Answer: At what point in the training step is clipping applied? _____________
+      - Answer: At what point in the training step is clipping applied? Gradient clipping is applied after the backward pass and before the optimizer step, ensuring that gradients don't exceed the specified maximum norm
       - Git: Commit with `git commit -m "Add gradient clipping to training step"`
-  - [ ] Apply gradients to model
+  - [x] Apply gradients to model
       - Condition: `optimizer.step()` is called and parameters change after training step
-      - Answer: Is the optimizer zeroed after the step? _____________
+      - Answer: Is the optimizer zeroed after the step? Yes, the optimizer is zeroed after the step with optimizer.zero_grad() to prevent gradient accumulation between batches
       - Git: Commit with `git commit -m "Apply gradients to model parameters"`
-  - [ ] Update learning rate
+  - [x] Update learning rate
       - Condition: `scheduler.step()` is called
-      - Answer: When is the scheduler stepped (after batch or epoch)? _____________
+      - Answer: When is the scheduler stepped (after batch or epoch)? The scheduler is stepped after each batch (or after each accumulation step) to provide a smooth learning rate curve
       - Git: Commit with `git commit -m "Update learning rate with scheduler"`
-  - [ ] Return loss value
+  - [x] Return loss value
       - Condition: `train_step` returns scalar loss
-      - Answer: Is the loss detached from the computation graph? _____________
+      - Answer: Is the loss detached from the computation graph? Yes, the loss is detached from the computation graph with loss.detach() to prevent memory leaks and ensure it can be safely returned
       - Git: Commit with `git commit -m "Return loss from training step"`
 
-- [ ] **Implement evaluation step**
-  - [ ] Create function for evaluation
+- [x] **Implement evaluation step**
+  - [x] Create function for evaluation
       - Condition: `eval_step(model, batch)` function exists
-      - Answer: Is the model set to evaluation mode? _____________
+      - Answer: Is the model set to evaluation mode? Yes, the model is set to evaluation mode with model.eval() to disable dropout and other training-specific behaviors
       - Git: Commit with `git commit -m "Create evaluation function"`
-  - [ ] Calculate model predictions
+  - [x] Calculate model predictions
       - Condition: `predictions = model(inputs).argmax(dim=-1)` is computed
-      - Answer: How are padded positions handled in predictions? _____________
+      - Answer: How are padded positions handled in predictions? Padded positions are excluded from accuracy calculations using a valid_mask that identifies positions with actual tokens (not padding or -100 values)
       - Git: Commit with `git commit -m "Calculate model predictions"`
-  - [ ] Calculate position-wise accuracy
+  - [x] Calculate position-wise accuracy
       - Condition: `position_accuracy` equals number of correct positions divided by total valid positions
-      - Answer: How are positions after EOS handled? _____________
+      - Answer: How are positions after EOS handled? Positions after the first EOS token are excluded from accuracy calculations using an eos_mask that identifies positions up to and including the first EOS token
       - Git: Commit with `git commit -m "Implement position-wise accuracy"`
-  - [ ] Calculate sequence-level accuracy
+  - [x] Calculate sequence-level accuracy
       - Condition: `sequence_accuracy` equals number of completely correct sequences divided by batch size
-      - Answer: What constitutes a completely correct sequence? _____________
+      - Answer: What constitutes a completely correct sequence? A completely correct sequence is one where all tokens up to and including the first EOS token match the target exactly, with no errors in any position
       - Git: Commit with `git commit -m "Add sequence-level accuracy"`
-  - [ ] Return metrics as used in TTM paper evaluation
+  - [x] Return metrics as used in TTM paper evaluation
       - Condition: `eval_step` returns dictionary with accuracy metrics including sequence-level accuracy and position-wise accuracy
-      - Answer: What metrics are included in the dictionary? _____________
+      - Answer: What metrics are included in the dictionary? The metrics dictionary includes loss, position_accuracy (token-level accuracy), and sequence_accuracy (exact match accuracy), which are the key metrics used in the TTM paper
       - Git: Commit with `git commit -m "Return evaluation metrics as used in TTM paper"`
 
-- [ ] **Implement main training loop**
-  - [ ] Initialize model and dataset
+- [x] **Implement main training loop**
+  - [x] Initialize model and dataset
       - Condition: `model = TTMModel()` and `dataset = MultiplicationDataset()` create instances
-      - Answer: What parameters are used for initialization? _____________
+      - Answer: What parameters are used for initialization? The model is initialized with vocab_size, embedding_dim, memory_size, r, num_layers, num_heads, hidden_dim, and dropout parameters. The dataset is initialized with num_digits_a, num_digits_b, seq_len, pad_token_id, and eos_token_id parameters
       - Git: Commit with `git commit -m "Initialize model and dataset"`
-  - [ ] Create optimizer and scheduler
+  - [x] Create optimizer and scheduler
       - Condition: `optimizer` and `scheduler` are initialized
-      - Answer: Are they created with the parameters from Phase 9? _____________
+      - Answer: Are they created with the parameters from Phase 9? Yes, the optimizer is created with the AdamW optimizer, learning_rate=1e-4, and weight_decay=0.01. The scheduler is created with a cosine schedule, warmup steps, and appropriate learning rate bounds
       - Git: Commit with `git commit -m "Set up optimizer and scheduler"`
-  - [ ] Implement epoch loop
+  - [x] Implement epoch loop
       - Condition: `for epoch in range(num_epochs):` loop exists with training steps
-      - Answer: How many batches are processed per epoch? _____________
+      - Answer: How many batches are processed per epoch? All batches in the training dataloader are processed in each epoch, with a progress bar showing the current progress
       - Git: Commit with `git commit -m "Implement training epoch loop"`
-  - [ ] Add periodic evaluation
+  - [x] Add periodic evaluation
       - Condition: evaluation is performed every 10 epochs
-      - Answer: What evaluation dataset is used? _____________
+      - Answer: What evaluation dataset is used? A separate validation dataset is used, which is created from the same distribution as the training dataset but with different examples
       - Git: Commit with `git commit -m "Add periodic evaluation"`
-  - [ ] Add example prediction logging
+  - [x] Add example prediction logging
       - Condition: at least 3 example predictions are logged every evaluation
-      - Answer: How are examples selected for logging? _____________
+      - Answer: How are examples selected for logging? The first batch from the validation dataloader is used, and up to 3 examples are selected from it for detailed logging of inputs, targets, and predictions
       - Git: Commit with `git commit -m "Add example prediction logging"`
-  - [ ] Implement early stopping
+  - [x] Implement early stopping
       - Condition: training stops if no improvement for 20 epochs
-      - Answer: What metric is used for early stopping? _____________
+      - Answer: What metric is used for early stopping? The validation loss is used by default, but it can be configured to use any metric such as position_accuracy or sequence_accuracy
       - Git: Commit with `git commit -m "Implement early stopping"`
-  - [ ] Save best model
+  - [x] Save best model
       - Condition: `torch.save(model.state_dict(), 'models/best_model.pt')` is called when new best model is found
-      - Answer: What criterion determines the "best" model? _____________
+      - Answer: What criterion determines the "best" model? The model with the lowest validation loss (or highest validation accuracy, depending on the early_stopping_metric parameter) is considered the best model
       - Git: Commit with `git commit -m "Add model checkpoint saving"`
 
-- [ ] **Implement curriculum learning**
-  - [ ] Track accuracy history
+- [x] **Implement curriculum learning**
+  - [x] Track accuracy history
       - Condition: `accuracy_history` list is maintained and updated after each evaluation
-      - Answer: How many recent evaluations are tracked? _____________
+      - Answer: How many recent evaluations are tracked? The implementation tracks all evaluations but considers only the last 'accuracy_window' (default 5) evaluations when determining whether to progress to the next stage
       - Git: Commit with `git commit -m "Track accuracy history"`
-  - [ ] Check for progression criteria
+  - [x] Check for progression criteria
       - Condition: code checks if `np.mean(accuracy_history[-5:]) >= 0.9`
-      - Answer: Why is the threshold set at 0.9? _____________
+      - Answer: Why is the threshold set at 0.9? The threshold is set at 0.9 to ensure that the model has mastered the current difficulty level before progressing to a harder one, balancing between progression speed and learning stability
       - Git: Commit with `git commit -m "Add progression criteria check"`
-  - [ ] Implement stage progression
+  - [x] Implement stage progression
       - Condition: `dataset.current_stage` increases when accuracy threshold is met
-      - Answer: How is the dataset updated when progressing? _____________
+      - Answer: How is the dataset updated when progressing? When progressing to the next stage, a new dataset is created with the updated stage parameter, which adjusts the difficulty level by changing parameters like the number of digits or the operation type
       - Git: Commit with `git commit -m "Implement difficulty progression"`
-  - [ ] Add maximum epochs per stage
+  - [x] Add maximum epochs per stage
       - Condition: code forces progression after 1000 epochs in a stage
-      - Answer: Why is a maximum epoch limit necessary? _____________
+      - Answer: Why is a maximum epoch limit necessary? A maximum epoch limit is necessary to prevent the training from getting stuck on a difficult stage indefinitely, ensuring that the model can progress through all curriculum stages even if it doesn't fully master some of them
       - Git: Commit with `git commit -m "Add maximum epochs per stage"`
       - Git: Push branch with `git push origin feature/training-loop`
       - Git: Create pull request for review
