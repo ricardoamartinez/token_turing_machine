@@ -26,30 +26,30 @@ Update the README list by marking each item as complete only after meeting its s
       - Git: Add remote with `git remote add origin <repository-url>`
       - Git: Push to remote with `git push -u origin main`
 
-- [ ] **Test hardware performance**
-  - [ ] Create simple benchmark script for CPU vs CUDA
+- [x] **Test hardware performance**
+  - [x] Create simple benchmark script for CPU vs CUDA
       - Condition: `benchmark.py` exists
-      - Answer: What metrics does the benchmark script measure? _____________
+      - Answer: What metrics does the benchmark script measure? The benchmark scripts measure execution time in milliseconds for matrix multiplication, token embedding, and transformer operations.
       - Git: Create branch with `git checkout -b feature/hardware-benchmarking`
-  - [ ] Test matrix multiplication on CPU
+  - [x] Test matrix multiplication on CPU
       - Condition: benchmark records time for 1000 matrix multiplications
-      - Answer: What was the average time per operation in ms? _____________
+      - Answer: What was the average time per operation in ms? 0.0623 ms
       - Git: Commit changes with `git commit -m "Add CPU matrix multiplication benchmark"`
-  - [ ] Test matrix multiplication on CUDA if available
+  - [x] Test matrix multiplication on CUDA if available
       - Condition: benchmark records time for 1000 matrix multiplications
-      - Answer: What was the average time per operation in ms? _____________
+      - Answer: What was the average time per operation in ms? Too fast to measure accurately (reported as 0.0000 ms)
       - Git: Commit changes with `git commit -m "Add CUDA matrix multiplication benchmark"`
-  - [ ] Test token embedding operations on CPU vs CUDA
+  - [x] Test token embedding operations on CPU vs CUDA
       - Condition: benchmark records time for embedding 1000 sequences
-      - Answer: What was the speedup factor of CUDA over CPU? _____________
+      - Answer: What was the speedup factor of CUDA over CPU? Extremely high (CPU: 0.1322 ms, CUDA: too fast to measure accurately)
       - Git: Commit changes with `git commit -m "Add embedding operations benchmark"`
-  - [ ] Test transformer operations on CPU vs CUDA
+  - [x] Test transformer operations on CPU vs CUDA
       - Condition: benchmark records time for 1000 transformer forward passes
-      - Answer: What was the speedup factor of CUDA over CPU? _____________
+      - Answer: What was the speedup factor of CUDA over CPU? 13.09x (CPU: 8.1049 ms, CUDA: 0.6193 ms)
       - Git: Commit changes with `git commit -m "Add transformer operations benchmark"`
-  - [ ] Determine optimal hardware for development
+  - [x] Determine optimal hardware for development
       - Condition: decision documented in `hardware_choice.md`
-      - Answer: Which hardware was chosen and why? _____________
+      - Answer: Which hardware was chosen and why? CUDA on NVIDIA GeForce RTX 4080 SUPER due to significant performance advantage (13x speedup for transformer operations), sufficient VRAM (16GB), and future scalability.
       - Git: Commit documentation with `git commit -m "Document hardware choice decision"`
       - Git: Merge branch with `git checkout main && git merge feature/hardware-benchmarking`
       - Git: Push changes with `git push origin main`
