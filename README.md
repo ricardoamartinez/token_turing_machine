@@ -1,0 +1,664 @@
+# TTM Multiplication Model Implementation Checklist
+
+This repository implements a Token Turing Machine (TTM) model with a Transformer processing unit for learning multiplication of arbitrary numbers. The implementation follows the architecture described in the [Token Turing Machines paper](https://arxiv.org/abs/2211.09119) by Michael S. Ryoo et al. from Google Research.
+
+Token Turing Machines (TTMs) are sequential, autoregressive models with external memory designed for efficient processing of sequential data. The key innovation is the use of token summarization to maintain a compact memory representation that summarizes relevant history, enabling constant computational cost regardless of sequence length.
+
+## Implementation Checklist
+
+### Phase 1: Environment Setup and Hardware Testing
+
+- [ ] **Set up development environment**
+  - [ ] Install PyTorch
+      - Condition: `import torch` runs without error and `torch.__version__` returns version ≥ 1.10.0
+      - Answer: What PyTorch version was installed? _____________
+      - Git: Initialize repository with `git init`
+  - [ ] Create project directory structure
+      - Condition: directories `src/`, `data/`, and `models/` exist
+      - Answer: What additional directories were created, if any? _____________
+      - Git: Add directories with `git add src/ data/ models/`
+  - [ ] Initialize version control
+      - Condition: `.git/` directory exists
+      - Answer: What is the URL of the remote repository? _____________
+      - Git: Create initial commit with `git commit -m "Initial project structure"`
+      - Git: Add remote with `git remote add origin <repository-url>`
+      - Git: Push to remote with `git push -u origin main`
+
+- [ ] **Test hardware performance**
+  - [ ] Create simple benchmark script for CPU vs CUDA
+      - Condition: `benchmark.py` exists
+      - Answer: What metrics does the benchmark script measure? _____________
+      - Git: Create branch with `git checkout -b feature/hardware-benchmarking`
+  - [ ] Test matrix multiplication on CPU
+      - Condition: benchmark records time for 1000 matrix multiplications
+      - Answer: What was the average time per operation in ms? _____________
+      - Git: Commit changes with `git commit -m "Add CPU matrix multiplication benchmark"`
+  - [ ] Test matrix multiplication on CUDA if available
+      - Condition: benchmark records time for 1000 matrix multiplications
+      - Answer: What was the average time per operation in ms? _____________
+      - Git: Commit changes with `git commit -m "Add CUDA matrix multiplication benchmark"`
+  - [ ] Test token embedding operations on CPU vs CUDA
+      - Condition: benchmark records time for embedding 1000 sequences
+      - Answer: What was the speedup factor of CUDA over CPU? _____________
+      - Git: Commit changes with `git commit -m "Add embedding operations benchmark"`
+  - [ ] Test transformer operations on CPU vs CUDA
+      - Condition: benchmark records time for 1000 transformer forward passes
+      - Answer: What was the speedup factor of CUDA over CPU? _____________
+      - Git: Commit changes with `git commit -m "Add transformer operations benchmark"`
+  - [ ] Determine optimal hardware for development
+      - Condition: decision documented in `hardware_choice.md`
+      - Answer: Which hardware was chosen and why? _____________
+      - Git: Commit documentation with `git commit -m "Document hardware choice decision"`
+      - Git: Merge branch with `git checkout main && git merge feature/hardware-benchmarking`
+      - Git: Push changes with `git push origin main`
+
+### Phase 2: Core Data Structures
+
+- [ ] **Implement tokenization scheme**
+  - [ ] Define vocabulary size = 13
+      - Condition: `VOCAB_SIZE = 13` constant exists in code
+      - Answer: Where is this constant defined (file path)? _____________
+      - Git: Create branch with `git checkout -b feature/tokenization`
+  - [ ] Assign tokens 0-9 for digits
+      - Condition: `DIGIT_TOKENS = range(10)` or equivalent exists in code
+      - Answer: How are digit tokens represented in the code? _____________
+      - Git: Commit with `git commit -m "Define digit tokens"`
+  - [ ] Assign token 10 for multiplication symbol
+      - Condition: `TIMES_TOKEN = 10` constant exists in code
+      - Answer: What symbol is displayed for this token? _____________
+      - Git: Commit with `git commit -m "Add multiplication symbol token"`
+  - [ ] Assign token 11 for EOS
+      - Condition: `EOS_TOKEN = 11` constant exists in code
+      - Answer: How is EOS handled in the tokenization process? _____________
+      - Git: Commit with `git commit -m "Add EOS token"`
+  - [ ] Assign token 12 for padding
+      - Condition: `PAD_TOKEN = 12` constant exists in code
+      - Answer: How is padding applied to sequences? _____________
+      - Git: Commit with `git commit -m "Add padding token"`
+  - [ ] Create function to convert numbers to token sequences
+      - Condition: `number_to_tokens(42)` returns `[4, 2]`
+      - Answer: How does the function handle multi-digit numbers? _____________
+      - Git: Commit with `git commit -m "Implement number to token conversion"`
+  - [ ] Create function to convert token sequences back to strings
+      - Condition: `tokens_to_string([4, 2])` returns `"42"`
+      - Answer: How does the function handle special tokens like EOS? _____________
+      - Git: Commit with `git commit -m "Implement token to string conversion"`
+      - Git: Push branch with `git push origin feature/tokenization`
+
+- [ ] **Implement dataset class**
+  - [ ] Create MultiplicationDataset class
+      - Condition: `MultiplicationDataset` class exists with `__init__` and `generate_batch` methods
+      - Answer: What parameters does the constructor accept? _____________
+      - Git: Create branch with `git checkout -b feature/dataset`
+  - [ ] Implement difficulty stages
+      - Condition: `stages` attribute contains exactly 7 tuples of (min_val, max_val)
+      - Answer: What are the ranges for each difficulty stage? _____________
+      - Git: Commit with `git commit -m "Implement difficulty stages"`
+  - [ ] Implement batch generation
+      - Condition: `generate_batch()` returns two arrays of shape (batch_size, seq_len)
+      - Answer: What is the maximum sequence length used? _____________
+      - Git: Commit with `git commit -m "Implement batch generation"`
+  - [ ] Implement data augmentation techniques (as used in TTM paper)
+      - Condition: `augment_batch(inputs, targets)` applies augmentation to training examples
+      - Answer: What augmentation techniques are implemented? _____________
+      - Git: Commit with `git commit -m "Add data augmentation techniques from TTM paper"`
+  - [ ] Implement difficulty progression
+      - Condition: `increase_difficulty()` increments `current_stage` by 1
+      - Answer: What triggers difficulty progression during training? _____________
+      - Git: Commit with `git commit -m "Add difficulty progression"`
+  - [ ] Test dataset with small batch
+      - Condition: `dataset.generate_batch()` returns valid inputs and targets
+      - Answer: Provide an example input-target pair from the test: _____________
+      - Git: Commit with `git commit -m "Add dataset tests"`
+      - Git: Push branch with `git push origin feature/dataset`
+      - Git: Create pull request for review
+      - Git: After review, merge with `git checkout main && git merge feature/dataset`
+      - Git: Merge tokenization branch with `git merge feature/tokenization`
+      - Git: Push to main with `git push origin main`
+
+### Phase 3: Token Summarization Module
+
+- [ ] **Implement token summarization methods from TTM paper**
+  - [ ] Create importance weight calculation function using MLP-based approach
+      - Condition: `compute_importance_weights(tokens, k=5)` returns weights of shape [batch_size, k, num_tokens]
+      - Answer: What MLP architecture was used (layers, sizes)? _____________
+      - Git: Create branch with `git checkout -b feature/token-summarization`
+  - [ ] Implement softmax normalization of weights
+      - Condition: `normalize_weights(weights)` returns weights that sum to 1.0 along the last dimension
+      - Answer: What temperature value is used in the softmax, if any? _____________
+      - Git: Commit with `git commit -m "Implement weight normalization"`
+  - [ ] Implement weighted summation
+      - Condition: `weighted_sum(tokens, weights)` returns tokens of shape [batch_size, k, embedding_dim]
+      - Answer: How is the matrix multiplication implemented? _____________
+      - Git: Commit with `git commit -m "Implement weighted summation"`
+  - [ ] Combine into token summarization function
+      - Condition: `token_summarize(tokens, k=5)` reduces tokens from any count to exactly k tokens
+      - Answer: What is the computational complexity of this operation? _____________
+      - Git: Commit with `git commit -m "Create token summarization function"`
+  - [ ] Test MLP-based token summarization with dummy inputs
+      - Condition: `token_summarize(torch.randn(2, 10, 128), k=5).shape` equals [2, 5, 128]
+      - Answer: What is the average L2 norm difference between input and output tokens? _____________
+      - Git: Commit with `git commit -m "Add MLP-based token summarization tests"`
+  - [ ] Implement alternative query-based token summarization (as described in TTM paper)
+      - Condition: `query_summarize(tokens, k=5)` reduces tokens from any count to exactly k tokens using learned query vectors
+      - Answer: How are the query vectors initialized? _____________
+      - Git: Commit with `git commit -m "Implement query-based token summarization from TTM paper"`
+  - [ ] Test query-based token summarization with dummy inputs
+      - Condition: `query_summarize(torch.randn(2, 10, 128), k=5).shape` equals [2, 5, 128]
+      - Answer: How does query-based performance compare to MLP-based approach? _____________
+      - Git: Commit with `git commit -m "Add query-based token summarization tests"`
+  - [ ] Implement pooling-based token summarization (as described in TTM paper)
+      - Condition: `pooling_summarize(tokens, k=5)` reduces tokens from any count to exactly k tokens using average pooling
+      - Answer: How is the pooling operation implemented? _____________
+      - Git: Commit with `git commit -m "Implement pooling-based token summarization from TTM paper"`
+  - [ ] Test pooling-based token summarization with dummy inputs
+      - Condition: `pooling_summarize(torch.randn(2, 10, 128), k=5).shape` equals [2, 5, 128]
+      - Answer: How does pooling-based performance compare to other approaches? _____________
+      - Git: Commit with `git commit -m "Add pooling-based token summarization tests"`
+      - Git: Push branch with `git push origin feature/token-summarization`
+      - Git: Create pull request for review
+      - Git: After review, merge with `git checkout main && git merge feature/token-summarization`
+      - Git: Push to main with `git push origin main`
+
+### Phase 4: Memory Operations
+
+- [ ] **Implement unified memory-input reading strategy (as described in TTM paper)**
+  - [ ] Create function to concatenate memory and input tokens
+      - Condition: `concat_memory_input(memory, input).shape[1]` equals `memory.shape[1] + input.shape[1]`
+      - Answer: How is the concatenation performed (which dimension)? _____________
+      - Git: Create branch with `git checkout -b feature/memory-operations`
+  - [ ] Add learnable positional embeddings to distinguish memory from input
+      - Condition: `add_positional_info(memory, input)` adds different embeddings to memory vs. input tokens
+      - Answer: What type of positional encoding is used? _____________
+      - Git: Commit with `git commit -m "Add learnable positional embeddings for memory addressing by location"`
+  - [ ] Apply token summarization to reduce tokens to r=16 (as specified in TTM paper)
+      - Condition: `read_operation(memory, input, r=16).shape[1]` equals exactly 16
+      - Answer: How many tokens come from memory vs. input after summarization? _____________
+      - Git: Commit with `git commit -m "Implement memory read operation with r=16 tokens as in TTM paper"`
+  - [ ] Test read operation with dummy inputs
+      - Condition: `read_operation(torch.randn(2, 12, 128), torch.randn(2, 10, 128), r=16).shape` equals [2, 16, 128]
+      - Answer: What is the execution time of this operation? _____________
+      - Git: Commit with `git commit -m "Add memory read tests"`
+
+- [ ] **Implement token summarization-based memory write operation (as described in TTM paper)**
+  - [ ] Create function to concatenate memory, output, and input tokens
+      - Condition: `concat_for_write(memory, output, input).shape[1]` equals sum of all token counts
+      - Answer: In what order are the tokens concatenated? _____________
+      - Git: Commit with `git commit -m "Add token concatenation for memory write"`
+  - [ ] Add learnable positional embeddings to distinguish sources
+      - Condition: `add_write_positional_info(memory, output, input)` adds different embeddings to each token source
+      - Answer: How are the different token sources distinguished? _____________
+      - Git: Commit with `git commit -m "Add positional embeddings for memory write with location-based addressing"`
+  - [ ] Apply token summarization to select new memory tokens
+      - Condition: `write_operation(memory, output, input).shape` equals exactly `memory.shape`
+      - Answer: What mechanism ensures the memory size stays constant? _____________
+      - Git: Commit with `git commit -m "Implement memory write operation"`
+  - [ ] Test write operation with dummy inputs
+      - Condition: `write_operation(torch.randn(2, 96, 128), torch.randn(2, 16, 128), torch.randn(2, 10, 128)).shape` equals [2, 96, 128]
+      - Answer: What is the execution time of this operation? _____________
+      - Git: Commit with `git commit -m "Add memory write tests"`
+  - [ ] Implement alternative NTM-style erase-and-add memory write (for comparison as in TTM paper)
+      - Condition: `erase_add_write(memory, output, input).shape` equals memory.shape
+      - Answer: How does this approach differ from token summarization-based write? _____________
+      - Git: Commit with `git commit -m "Implement NTM-style erase-and-add memory write for comparison"`
+  - [ ] Implement alternative concatenation-based memory write (for comparison as in TTM paper)
+      - Condition: `concat_write(memory, input).shape` equals memory.shape
+      - Answer: How does this approach handle memory size constraints? _____________
+      - Git: Commit with `git commit -m "Implement concatenation-based memory write for comparison"`
+      - Git: Push branch with `git push origin feature/memory-operations`
+      - Git: Create pull request for review
+      - Git: After review, merge with `git checkout main && git merge feature/memory-operations`
+      - Git: Push to main with `git push origin main`
+
+### Phase 5: Transformer Processing Unit
+
+- [ ] **Implement Transformer processing unit**
+  - [ ] Create multi-head self-attention module
+      - Condition: `MultiHeadAttention(dim=128, heads=4)` class exists with forward method
+      - Answer: How is attention scaling implemented? _____________
+      - Git: Create branch with `git checkout -b feature/transformer-unit`
+  - [ ] Create feed-forward network module
+      - Condition: `FeedForward(dim=128, hidden_dim=512)` class exists with forward method
+      - Answer: What activation function is used? _____________
+      - Git: Commit with `git commit -m "Implement feed-forward network"`
+  - [ ] Create Transformer block
+      - Condition: `TransformerBlock(dim=128, heads=4)` class exists with forward method
+      - Answer: What normalization technique is used (pre/post-norm)? _____________
+      - Git: Commit with `git commit -m "Create transformer block"`
+  - [ ] Stack multiple Transformer blocks (4 blocks with hidden size 512 as in TTM paper)
+      - Condition: `TransformerStack(dim=128, depth=4, heads=4, hidden_dim=512)` class exists with forward method
+      - Answer: How are residual connections implemented? _____________
+      - Git: Commit with `git commit -m "Implement stacked transformer blocks with 4 layers and hidden size 512 as in TTM paper"`
+  - [ ] Test Transformer with dummy inputs
+      - Condition: `transformer(torch.randn(2, 16, 128)).shape` equals [2, 16, 128]
+      - Answer: What is the FLOPS count for a single forward pass? _____________
+      - Git: Commit with `git commit -m "Add transformer tests"`
+      - Git: Push branch with `git push origin feature/transformer-unit`
+      - Git: Create pull request for review
+      - Git: After review, merge with `git checkout main && git merge feature/transformer-unit`
+      - Git: Push to main with `git push origin main`
+
+### Phase 6: TTM Core Implementation
+
+- [ ] **Implement embedding layers**
+  - [ ] Create token embedding layer with proper initialization (as in TTM paper)
+      - Condition: `token_embed = nn.Embedding(13, 128, embedding_init=nn.initializers.normal(stddev=0.01)); token_embed(torch.tensor([1, 2, 3])).shape` equals [3, 128]
+      - Answer: How is the embedding layer initialized? _____________
+      - Git: Create branch with `git checkout -b feature/ttm-core`
+  - [ ] Create learnable position embedding layer
+      - Condition: `pos_embed = nn.Embedding(12, 128); pos_embed(torch.tensor([0, 1, 2])).shape` equals [3, 128]
+      - Answer: What is the maximum sequence length supported? _____________
+      - Git: Commit with `git commit -m "Add learnable position embedding layer as specified in TTM paper"`
+  - [ ] Implement embedding combination
+      - Condition: `combined = token_embed + pos_embed; combined.shape` equals [3, 128]
+      - Answer: Is any normalization applied after combination? _____________
+      - Git: Commit with `git commit -m "Implement embedding combination"`
+
+- [ ] **Implement memory initialization**
+  - [ ] Create learnable memory initialization parameter with size m=96 (as specified in TTM paper)
+      - Condition: `model.memory_init` exists as a Parameter in the model with shape [1, 96, 128]
+      - Answer: Where is this parameter defined in the model? _____________
+      - Git: Commit with `git commit -m "Add learnable memory initialization with m=96 tokens as in TTM paper"`
+  - [ ] Initialize with normal distribution, stddev=0.01
+      - Condition: `torch.abs(model.memory_init).mean()` is approximately 0.008 ± 0.002
+      - Answer: What is the exact initialization code used? _____________
+      - Git: Commit with `git commit -m "Initialize memory parameters"`
+  - [ ] Implement memory broadcasting to batch size
+      - Condition: `model._broadcast_memory(batch_size=4).shape` equals [4, 96, 128]
+      - Answer: How is memory expanded for batched processing? _____________
+      - Git: Commit with `git commit -m "Add memory broadcasting for batches"`
+
+- [ ] **Implement output head**
+  - [ ] Create first dense layer with 128 units
+      - Condition: `model.pre_output1.weight.shape` equals [128, 128]
+      - Answer: What activation function follows this layer? _____________
+      - Git: Commit with `git commit -m "Add first output layer"`
+  - [ ] Create second dense layer with 64 units
+      - Condition: `model.pre_output2.weight.shape` equals [64, 128]
+      - Answer: What activation function follows this layer? _____________
+      - Git: Commit with `git commit -m "Add second output layer"`
+  - [ ] Create digit head with 11 outputs
+      - Condition: `model.digit_head.weight.shape` equals [11, 64]
+      - Answer: Why 11 outputs instead of 10 for digits? _____________
+      - Git: Commit with `git commit -m "Implement digit output head"`
+  - [ ] Create EOS head with 1 output
+      - Condition: `model.eos_head.weight.shape` equals [1, 64]
+      - Answer: How is the EOS probability calculated? _____________
+      - Git: Commit with `git commit -m "Implement EOS output head"`
+  - [ ] Test output head with dummy inputs
+      - Condition: `model._compute_output_head(torch.randn(2, 12, 128)).shape` equals [2, 12, 13]
+      - Answer: How are the digit and EOS outputs combined? _____________
+      - Git: Commit with `git commit -m "Add output head tests"`
+
+- [ ] **Implement TTM forward pass**
+  - [ ] Create position indices
+      - Condition: `model._create_position_indices(inputs).shape` equals inputs.shape[:2]
+      - Answer: How are position indices generated? _____________
+      - Git: Commit with `git commit -m "Add position indices generation"`
+  - [ ] Apply token and position embeddings
+      - Condition: `model._embed_inputs(inputs).shape` equals [batch, seq_len, 128]
+      - Answer: Is dropout applied to embeddings? _____________
+      - Git: Commit with `git commit -m "Implement input embedding"`
+  - [ ] Initialize memory
+      - Condition: `model._initialize_memory(batch_size).shape` equals [batch_size, 12, 128]
+      - Answer: Is memory initialized differently during training vs. inference? _____________
+      - Git: Commit with `git commit -m "Add memory initialization"`
+  - [ ] Implement read operation
+      - Condition: `model._read(memory, embedded_inputs).shape` equals [batch, 16, 128]
+      - Answer: How does the read operation use token summarization? _____________
+      - Git: Commit with `git commit -m "Integrate read operation"`
+  - [ ] Process through Transformer
+      - Condition: `model._process(read_tokens).shape` equals [batch, 16, 128]
+      - Answer: How many transformer layers are used? _____________
+      - Git: Commit with `git commit -m "Connect transformer processing"`
+  - [ ] Implement write operation
+      - Condition: `model._write(memory, processed, embedded_inputs).shape` equals [batch, 12, 128]
+      - Answer: How does the write operation update memory? _____________
+      - Git: Commit with `git commit -m "Integrate write operation"`
+  - [ ] Apply output layers
+      - Condition: `model(inputs).shape` equals [batch, seq_len, 13]
+      - Answer: What is the structure of the output tensor? _____________
+      - Git: Commit with `git commit -m "Connect output layers"`
+  - [ ] Test complete forward pass
+      - Condition: `model(torch.tensor([[1, 2, 10, 3, 11, 12, 12, 12, 12, 12, 12, 12]]))` runs without error
+      - Answer: What is the memory usage for this forward pass? _____________
+      - Git: Commit with `git commit -m "Add complete forward pass tests"`
+      - Git: Push branch with `git push origin feature/ttm-core`
+      - Git: Create pull request for review
+      - Git: After review, merge with `git checkout main && git merge feature/ttm-core`
+      - Git: Push to main with `git push origin main`
+
+### Phase 7: EOS Handling and Masking
+
+- [ ] **Implement EOS handling**
+  - [ ] Detect predicted EOS tokens
+      - Condition: `model._detect_eos(logits)` correctly identifies positions where EOS probability > 0.5
+      - Answer: What threshold is used for EOS detection? _____________
+      - Git: Create branch with `git checkout -b feature/eos-handling`
+  - [ ] Create cumulative mask for positions after EOS
+      - Condition: `model._create_eos_mask(has_eos)` creates mask with 1s after first EOS
+      - Answer: How is the first EOS token identified in each sequence? _____________
+      - Git: Commit with `git commit -m "Implement EOS mask creation"`
+  - [ ] Apply negative bias to digit logits after EOS
+      - Condition: `model._apply_digit_mask(logits, mask)` adds -1000.0 to digit logits after EOS
+      - Answer: Why is this bias necessary? _____________
+      - Git: Commit with `git commit -m "Add digit masking after EOS"`
+  - [ ] Apply positive bias to EOS logits after first EOS
+      - Condition: `model._apply_eos_boost(logits, mask)` adds +1000.0 to EOS logits after first EOS
+      - Answer: What effect does this have on the output sequence? _____________
+      - Git: Commit with `git commit -m "Add EOS boosting after first EOS"`
+  - [ ] Test EOS masking with dummy inputs
+      - Condition: `model._apply_eos_masking(logits, has_eos)` correctly modifies logits
+      - Answer: Provide an example of logits before and after masking: _____________
+      - Git: Commit with `git commit -m "Add EOS masking tests"`
+      - Git: Push branch with `git push origin feature/eos-handling`
+      - Git: Create pull request for review
+      - Git: After review, merge with `git checkout main && git merge feature/eos-handling`
+      - Git: Push to main with `git push origin main`
+
+### Phase 8: Loss Function Implementation
+
+- [ ] **Implement cross-entropy loss**
+  - [ ] Create target mask up to first EOS token
+      - Condition: `create_target_mask(targets)` creates mask with 1s up to and including first EOS
+      - Answer: How are padded tokens handled in the mask? _____________
+      - Git: Create branch with `git checkout -b feature/loss-function`
+  - [ ] Apply softmax cross-entropy with integer labels
+      - Condition: `compute_ce_loss(logits, targets)` returns scalar loss value
+      - Answer: What PyTorch function is used for cross-entropy? _____________
+      - Git: Commit with `git commit -m "Implement cross-entropy loss"`
+  - [ ] Apply mask to loss
+      - Condition: `compute_masked_ce_loss(logits, targets, mask)` only includes losses for masked positions
+      - Answer: How is the mask applied to the loss values? _____________
+      - Git: Commit with `git commit -m "Add masked loss computation"`
+  - [ ] Normalize by number of valid tokens
+      - Condition: `compute_normalized_ce_loss(logits, targets)` divides by sum of mask
+      - Answer: Why is normalization important? _____________
+      - Git: Commit with `git commit -m "Add loss normalization"`
+
+- [ ] **Implement EOS prediction loss**
+  - [ ] Find target EOS positions
+      - Condition: `find_eos_positions(targets)` returns indices of first EOS token in each sequence
+      - Answer: How are sequences without EOS handled? _____________
+      - Git: Commit with `git commit -m "Add EOS position detection"`
+  - [ ] Extract predicted EOS probabilities
+      - Condition: `extract_eos_probs(logits).shape` equals [batch, seq_len]
+      - Answer: How are EOS probabilities extracted from logits? _____________
+      - Git: Commit with `git commit -m "Extract EOS probabilities from logits"`
+  - [ ] Create binary target for EOS positions
+      - Condition: `create_eos_target(positions, seq_len)` creates binary target with 1 at EOS position
+      - Answer: What is the format of the binary target tensor? _____________
+      - Git: Commit with `git commit -m "Create binary EOS targets"`
+  - [ ] Calculate binary cross-entropy
+      - Condition: `compute_eos_bce(probs, targets)` returns scalar loss value
+      - Answer: What PyTorch function is used for binary cross-entropy? _____________
+      - Git: Commit with `git commit -m "Implement EOS binary cross-entropy"`
+
+- [ ] **Combine loss components**
+  - [ ] Combine CE loss and EOS loss
+      - Condition: `compute_total_loss(logits, targets)` returns scalar total loss
+      - Answer: What is the formula for combining the losses? _____________
+      - Git: Commit with `git commit -m "Combine loss components"`
+  - [ ] Apply appropriate scaling factors
+      - Condition: `compute_total_loss` uses factor 0.1 for EOS loss
+      - Answer: Why is the EOS loss scaled differently? _____________
+      - Git: Commit with `git commit -m "Add loss scaling factors"`
+  - [ ] Test combined loss with dummy inputs
+      - Condition: `compute_total_loss(model(inputs), targets)` returns reasonable loss value
+      - Answer: What is a typical loss value at initialization? _____________
+      - Git: Commit with `git commit -m "Add loss function tests"`
+      - Git: Push branch with `git push origin feature/loss-function`
+      - Git: Create pull request for review
+      - Git: After review, merge with `git checkout main && git merge feature/loss-function`
+      - Git: Push to main with `git push origin main`
+
+### Phase 9: Training Setup
+
+- [ ] **Implement optimizer**
+  - [ ] Create Adam optimizer
+      - Condition: `optimizer = torch.optim.Adam(model.parameters())` creates optimizer instance
+      - Answer: Why was Adam chosen over other optimizers? _____________
+      - Git: Create branch with `git checkout -b feature/training-setup`
+  - [ ] Set learning rate=1e-3
+      - Condition: `optimizer.param_groups[0]['lr']` equals 0.001
+      - Answer: How was this learning rate value determined? _____________
+      - Git: Commit with `git commit -m "Set optimizer learning rate"`
+  - [ ] Set beta parameters: b1=0.9, b2=0.99
+      - Condition: `optimizer.param_groups[0]['betas']` equals (0.9, 0.99)
+      - Answer: Why are these beta values used instead of the defaults? _____________
+      - Git: Commit with `git commit -m "Configure optimizer beta parameters"`
+  - [ ] Set epsilon=1e-8
+      - Condition: `optimizer.param_groups[0]['eps']` equals 1e-8
+      - Answer: What is the purpose of the epsilon parameter? _____________
+      - Git: Commit with `git commit -m "Set optimizer epsilon parameter"`
+  - [ ] Implement dropout and regularization (as specified in TTM paper)
+      - Condition: model includes dropout with rate=0.1 and weight decay=1e-4
+      - Answer: Where is dropout applied in the model architecture? _____________
+      - Git: Commit with `git commit -m "Add dropout and regularization as specified in TTM paper"`
+
+- [ ] **Implement learning rate schedule**
+  - [ ] Create warmup schedule with 100 steps
+      - Condition: `scheduler.get_lr()[0]` increases for first 100 steps
+      - Answer: What type of warmup curve is used (linear, exponential, etc.)? _____________
+      - Git: Commit with `git commit -m "Implement learning rate warmup"`
+  - [ ] Create cosine decay schedule with 1000 steps
+      - Condition: `scheduler.get_lr()[0]` decreases following cosine curve after warmup
+      - Answer: What PyTorch scheduler class is used? _____________
+      - Git: Commit with `git commit -m "Add cosine decay schedule"`
+  - [ ] Set peak learning rate to 2× base rate
+      - Condition: `scheduler.get_lr()[0]` at step 100 equals 0.002
+      - Answer: Why is the peak rate higher than the base rate? _____________
+      - Git: Commit with `git commit -m "Configure peak learning rate"`
+  - [ ] Set alpha=0.1 for minimum decay
+      - Condition: `scheduler.get_lr()[0]` at step 1100 equals 0.0001
+      - Answer: What is the purpose of the alpha parameter? _____________
+      - Git: Commit with `git commit -m "Set minimum learning rate"`
+
+- [ ] **Implement gradient clipping**
+  - [ ] Add gradient clipping with max_norm=1.0
+      - Condition: `torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)` is called before optimizer step
+      - Answer: Why is gradient clipping necessary for this model? _____________
+      - Git: Commit with `git commit -m "Add gradient clipping"`
+  - [ ] Test with dummy gradients
+      - Condition: norm of gradients after clipping is ≤ 1.0
+      - Answer: What was the norm before and after clipping? _____________
+      - Git: Commit with `git commit -m "Add gradient clipping tests"`
+      - Git: Push branch with `git push origin feature/training-setup`
+      - Git: Create pull request for review
+      - Git: After review, merge with `git checkout main && git merge feature/training-setup`
+      - Git: Push to main with `git push origin main`
+
+### Phase 10: Training Loop Implementation
+
+- [ ] **Implement training step**
+  - [ ] Create function for single training step
+      - Condition: `train_step(model, batch, optimizer)` function exists
+      - Answer: What parameters does the function accept? _____________
+      - Git: Create branch with `git checkout -b feature/training-loop`
+  - [ ] Calculate loss and gradients
+      - Condition: `loss.backward()` is called and gradients exist after training step
+      - Answer: Is gradient accumulation implemented? _____________
+      - Git: Commit with `git commit -m "Implement loss calculation and backpropagation"`
+  - [ ] Apply gradient clipping
+      - Condition: `torch.nn.utils.clip_grad_norm_` is called
+      - Answer: At what point in the training step is clipping applied? _____________
+      - Git: Commit with `git commit -m "Add gradient clipping to training step"`
+  - [ ] Apply gradients to model
+      - Condition: `optimizer.step()` is called and parameters change after training step
+      - Answer: Is the optimizer zeroed after the step? _____________
+      - Git: Commit with `git commit -m "Apply gradients to model parameters"`
+  - [ ] Update learning rate
+      - Condition: `scheduler.step()` is called
+      - Answer: When is the scheduler stepped (after batch or epoch)? _____________
+      - Git: Commit with `git commit -m "Update learning rate with scheduler"`
+  - [ ] Return loss value
+      - Condition: `train_step` returns scalar loss
+      - Answer: Is the loss detached from the computation graph? _____________
+      - Git: Commit with `git commit -m "Return loss from training step"`
+
+- [ ] **Implement evaluation step**
+  - [ ] Create function for evaluation
+      - Condition: `eval_step(model, batch)` function exists
+      - Answer: Is the model set to evaluation mode? _____________
+      - Git: Commit with `git commit -m "Create evaluation function"`
+  - [ ] Calculate model predictions
+      - Condition: `predictions = model(inputs).argmax(dim=-1)` is computed
+      - Answer: How are padded positions handled in predictions? _____________
+      - Git: Commit with `git commit -m "Calculate model predictions"`
+  - [ ] Calculate position-wise accuracy
+      - Condition: `position_accuracy` equals number of correct positions divided by total valid positions
+      - Answer: How are positions after EOS handled? _____________
+      - Git: Commit with `git commit -m "Implement position-wise accuracy"`
+  - [ ] Calculate sequence-level accuracy
+      - Condition: `sequence_accuracy` equals number of completely correct sequences divided by batch size
+      - Answer: What constitutes a completely correct sequence? _____________
+      - Git: Commit with `git commit -m "Add sequence-level accuracy"`
+  - [ ] Return metrics as used in TTM paper evaluation
+      - Condition: `eval_step` returns dictionary with accuracy metrics including sequence-level accuracy and position-wise accuracy
+      - Answer: What metrics are included in the dictionary? _____________
+      - Git: Commit with `git commit -m "Return evaluation metrics as used in TTM paper"`
+
+- [ ] **Implement main training loop**
+  - [ ] Initialize model and dataset
+      - Condition: `model = TTMModel()` and `dataset = MultiplicationDataset()` create instances
+      - Answer: What parameters are used for initialization? _____________
+      - Git: Commit with `git commit -m "Initialize model and dataset"`
+  - [ ] Create optimizer and scheduler
+      - Condition: `optimizer` and `scheduler` are initialized
+      - Answer: Are they created with the parameters from Phase 9? _____________
+      - Git: Commit with `git commit -m "Set up optimizer and scheduler"`
+  - [ ] Implement epoch loop
+      - Condition: `for epoch in range(num_epochs):` loop exists with training steps
+      - Answer: How many batches are processed per epoch? _____________
+      - Git: Commit with `git commit -m "Implement training epoch loop"`
+  - [ ] Add periodic evaluation
+      - Condition: evaluation is performed every 10 epochs
+      - Answer: What evaluation dataset is used? _____________
+      - Git: Commit with `git commit -m "Add periodic evaluation"`
+  - [ ] Add example prediction logging
+      - Condition: at least 3 example predictions are logged every evaluation
+      - Answer: How are examples selected for logging? _____________
+      - Git: Commit with `git commit -m "Add example prediction logging"`
+  - [ ] Implement early stopping
+      - Condition: training stops if no improvement for 20 epochs
+      - Answer: What metric is used for early stopping? _____________
+      - Git: Commit with `git commit -m "Implement early stopping"`
+  - [ ] Save best model
+      - Condition: `torch.save(model.state_dict(), 'models/best_model.pt')` is called when new best model is found
+      - Answer: What criterion determines the "best" model? _____________
+      - Git: Commit with `git commit -m "Add model checkpoint saving"`
+
+- [ ] **Implement curriculum learning**
+  - [ ] Track accuracy history
+      - Condition: `accuracy_history` list is maintained and updated after each evaluation
+      - Answer: How many recent evaluations are tracked? _____________
+      - Git: Commit with `git commit -m "Track accuracy history"`
+  - [ ] Check for progression criteria
+      - Condition: code checks if `np.mean(accuracy_history[-5:]) >= 0.9`
+      - Answer: Why is the threshold set at 0.9? _____________
+      - Git: Commit with `git commit -m "Add progression criteria check"`
+  - [ ] Implement stage progression
+      - Condition: `dataset.current_stage` increases when accuracy threshold is met
+      - Answer: How is the dataset updated when progressing? _____________
+      - Git: Commit with `git commit -m "Implement difficulty progression"`
+  - [ ] Add maximum epochs per stage
+      - Condition: code forces progression after 1000 epochs in a stage
+      - Answer: Why is a maximum epoch limit necessary? _____________
+      - Git: Commit with `git commit -m "Add maximum epochs per stage"`
+      - Git: Push branch with `git push origin feature/training-loop`
+      - Git: Create pull request for review
+      - Git: After review, merge with `git checkout main && git merge feature/training-loop`
+      - Git: Push to main with `git push origin main`
+
+### Phase 11: Performance Optimization
+
+- [ ] **Optimize computational efficiency**
+  - [ ] Measure FLOPS for model
+      - Condition: `measure_flops(model)` returns FLOPS count
+      - Answer: What is the total FLOPS count for a forward pass? _____________
+      - Git: Create branch with `git checkout -b feature/performance-optimization`
+  - [ ] Measure memory usage
+      - Condition: `measure_memory(model)` returns memory usage in MB
+      - Answer: What is the peak memory usage during training? _____________
+      - Git: Commit with `git commit -m "Add memory usage measurement"`
+  - [ ] Verify constant computational cost regardless of sequence length (key TTM feature)
+      - Condition: graph shows constant cost regardless of sequence length as described in TTM paper
+      - Answer: What is the computational complexity (O notation) and how does it compare to standard Transformer? _____________
+      - Git: Commit with `git commit -m "Verify TTM's constant computational cost with sequence length"`
+  - [ ] Implement JIT compilation for critical operations
+      - Condition: `@torch.jit.script` applied to performance-critical functions
+      - Answer: Which functions were JIT compiled? _____________
+      - Git: Commit with `git commit -m "Add JIT compilation"`
+  - [ ] Test performance on CPU vs CUDA
+      - Condition: benchmark shows relative performance difference
+      - Answer: What is the speedup factor of CUDA over CPU? _____________
+      - Git: Commit with `git commit -m "Compare CPU vs CUDA performance"`
+  - [ ] Compare TTM with standard Transformer on long sequences
+      - Condition: benchmark shows TTM's advantage over standard Transformer for long sequences
+      - Answer: At what sequence length does TTM start outperforming standard Transformer? _____________
+      - Git: Commit with `git commit -m "Compare TTM vs standard Transformer on long sequences"`
+  - [ ] Optimize batch size for hardware
+      - Condition: experiments determine optimal batch size for training
+      - Answer: What batch size provides the best performance? _____________
+      - Git: Commit with `git commit -m "Optimize batch size"`
+      - Git: Push branch with `git push origin feature/performance-optimization`
+      - Git: Create pull request for review
+      - Git: After review, merge with `git checkout main && git merge feature/performance-optimization`
+      - Git: Push to main with `git push origin main`
+
+### Phase 12: Testing and Evaluation
+
+- [ ] **Test generalization capabilities**
+  - [ ] Test on single-digit multiplication
+      - Condition: accuracy > 95% on test set with single-digit numbers
+      - Answer: What was the actual accuracy achieved? _____________
+      - Git: Create branch with `git checkout -b feature/testing-evaluation`
+  - [ ] Test on two-digit by one-digit multiplication
+      - Condition: accuracy > 90% on test set with two-digit by one-digit numbers
+      - Answer: What was the actual accuracy achieved? _____________
+      - Git: Commit with `git commit -m "Test two-digit by one-digit multiplication"`
+  - [ ] Test on two-digit by two-digit multiplication
+      - Condition: accuracy > 85% on test set with two-digit by two-digit numbers
+      - Answer: What was the actual accuracy achieved? _____________
+      - Git: Commit with `git commit -m "Test two-digit by two-digit multiplication"`
+  - [ ] Test on three-digit by two-digit multiplication
+      - Condition: accuracy > 80% on test set with three-digit by two-digit numbers
+      - Answer: What was the actual accuracy achieved? _____________
+      - Git: Commit with `git commit -m "Test three-digit by two-digit multiplication"`
+  - [ ] Test on numbers outside training range
+      - Condition: model produces reasonable results for numbers > 100
+      - Answer: How does accuracy degrade with larger numbers? _____________
+      - Git: Commit with `git commit -m "Test generalization to larger numbers"`
+  - [ ] Compare with memory-less version (as analyzed in TTM paper)
+      - Condition: implement and test a version of the model with memory disabled
+      - Answer: What is the performance difference between memory and memory-less versions? _____________
+      - Git: Commit with `git commit -m "Compare with memory-less version as in TTM paper analysis"`
+
+- [ ] **Create demonstration application**
+  - [ ] Create interactive demo
+      - Condition: `demo.py` runs and accepts user input for multiplication problems
+      - Answer: What user interface is provided? _____________
+      - Git: Commit with `git commit -m "Create interactive demo application"`
+  - [ ] Add visualization of memory content
+      - Condition: demo shows memory content evolution during computation
+      - Answer: How is memory content visualized? _____________
+      - Git: Commit with `git commit -m "Add memory visualization"`
+  - [ ] Add performance metrics display
+      - Condition: demo shows accuracy and computation time
+      - Answer: What metrics are displayed to the user? _____________
+      - Git: Commit with `git commit -m "Add performance metrics display"`
+  - [ ] Test demo with various inputs
+      - Condition: demo works correctly with single-digit, two-digit, and three-digit numbers
+      - Answer: What was the most complex multiplication solved correctly? _____________
+      - Git: Commit with `git commit -m "Test demo with various inputs"`
+      - Git: Push branch with `git push origin feature/testing-evaluation`
+      - Git: Create pull request for review
+      - Git: After review, merge with `git checkout main && git merge feature/testing-evaluation`
+      - Git: Push to main with `git push origin main`
+      - Git: Create release tag with `git tag -a v1.0.0 -m "First stable release"`
+      - Git: Push tag with `git push origin v1.0.0`
+
+## References
+
+- [Token Turing Machines paper](https://arxiv.org/abs/2211.09119)
+- [Original TTM implementation in JAX/Flax](https://github.com/google-research/scenic/tree/main/scenic/projects/token_turing)
