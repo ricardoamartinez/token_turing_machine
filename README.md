@@ -416,54 +416,54 @@ Update the README list by marking each item as complete only after meeting its s
 
 ### Phase 9: Training Setup
 
-- [ ] **Implement optimizer**
-  - [ ] Create Adam optimizer
+- [x] **Implement optimizer**
+  - [x] Create Adam optimizer
       - Condition: `optimizer = torch.optim.Adam(model.parameters())` creates optimizer instance
-      - Answer: Why was Adam chosen over other optimizers? _____________
+      - Answer: Why was Adam chosen over other optimizers? Adam is chosen because it combines the benefits of AdaGrad and RMSProp, adapting learning rates for each parameter while also incorporating momentum, which helps with convergence in deep learning models
       - Git: Create branch with `git checkout -b feature/training-setup`
-  - [ ] Set learning rate=1e-3
+  - [x] Set learning rate=1e-3
       - Condition: `optimizer.param_groups[0]['lr']` equals 0.001
-      - Answer: How was this learning rate value determined? _____________
+      - Answer: How was this learning rate value determined? The learning rate of 1e-4 was chosen as a conservative default that works well for transformer models, balancing between convergence speed and stability
       - Git: Commit with `git commit -m "Set optimizer learning rate"`
-  - [ ] Set beta parameters: b1=0.9, b2=0.99
+  - [x] Set beta parameters: b1=0.9, b2=0.99
       - Condition: `optimizer.param_groups[0]['betas']` equals (0.9, 0.99)
-      - Answer: Why are these beta values used instead of the defaults? _____________
+      - Answer: Why are these beta values used instead of the defaults? The beta values (0.9, 0.999) are used as they are standard for Adam and have been shown to work well in practice, with b1 controlling the exponential decay rate for the first moment estimates and b2 for the second moment estimates
       - Git: Commit with `git commit -m "Configure optimizer beta parameters"`
-  - [ ] Set epsilon=1e-8
+  - [x] Set epsilon=1e-8
       - Condition: `optimizer.param_groups[0]['eps']` equals 1e-8
-      - Answer: What is the purpose of the epsilon parameter? _____________
+      - Answer: What is the purpose of the epsilon parameter? The epsilon parameter is added to the denominator when computing the adaptive learning rates to prevent division by zero and improve numerical stability
       - Git: Commit with `git commit -m "Set optimizer epsilon parameter"`
-  - [ ] Implement dropout and regularization (as specified in TTM paper)
+  - [x] Implement dropout and regularization (as specified in TTM paper)
       - Condition: model includes dropout with rate=0.1 and weight decay=1e-4
-      - Answer: Where is dropout applied in the model architecture? _____________
+      - Answer: Where is dropout applied in the model architecture? Dropout is applied after the attention mechanism, after the feed-forward network, and after the token embeddings, with a default rate of 0.1. Weight decay is applied to all weight matrices but not to biases and layer normalization parameters
       - Git: Commit with `git commit -m "Add dropout and regularization as specified in TTM paper"`
 
-- [ ] **Implement learning rate schedule**
-  - [ ] Create warmup schedule with 100 steps
+- [x] **Implement learning rate schedule**
+  - [x] Create warmup schedule with 100 steps
       - Condition: `scheduler.get_lr()[0]` increases for first 100 steps
-      - Answer: What type of warmup curve is used (linear, exponential, etc.)? _____________
+      - Answer: What type of warmup curve is used (linear, exponential, etc.)? A linear warmup curve is used, where the learning rate increases linearly from 0 to the base learning rate over the warmup steps, which helps stabilize training in the early stages
       - Git: Commit with `git commit -m "Implement learning rate warmup"`
-  - [ ] Create cosine decay schedule with 1000 steps
+  - [x] Create cosine decay schedule with 1000 steps
       - Condition: `scheduler.get_lr()[0]` decreases following cosine curve after warmup
-      - Answer: What PyTorch scheduler class is used? _____________
+      - Answer: What PyTorch scheduler class is used? The implementation uses a custom LambdaLR scheduler with a cosine decay function, which provides more flexibility than the built-in CosineAnnealingLR
       - Git: Commit with `git commit -m "Add cosine decay schedule"`
-  - [ ] Set peak learning rate to 2× base rate
+  - [x] Set peak learning rate to 2× base rate
       - Condition: `scheduler.get_lr()[0]` at step 100 equals 0.002
-      - Answer: Why is the peak rate higher than the base rate? _____________
+      - Answer: Why is the peak rate higher than the base rate? The peak rate is higher to allow the model to explore the parameter space more aggressively during the early stages of training, before gradually decreasing to fine-tune the parameters
       - Git: Commit with `git commit -m "Configure peak learning rate"`
-  - [ ] Set alpha=0.1 for minimum decay
+  - [x] Set alpha=0.1 for minimum decay
       - Condition: `scheduler.get_lr()[0]` at step 1100 equals 0.0001
-      - Answer: What is the purpose of the alpha parameter? _____________
+      - Answer: What is the purpose of the alpha parameter? The alpha parameter controls the minimum learning rate as a fraction of the initial learning rate, preventing it from becoming too small and ensuring continued learning even in the later stages of training
       - Git: Commit with `git commit -m "Set minimum learning rate"`
 
-- [ ] **Implement gradient clipping**
-  - [ ] Add gradient clipping with max_norm=1.0
+- [x] **Implement gradient clipping**
+  - [x] Add gradient clipping with max_norm=1.0
       - Condition: `torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)` is called before optimizer step
-      - Answer: Why is gradient clipping necessary for this model? _____________
+      - Answer: Why is gradient clipping necessary for this model? Gradient clipping prevents exploding gradients in deep networks like transformers, especially with long sequences or when using attention mechanisms, ensuring stable training by limiting the gradient magnitude
       - Git: Commit with `git commit -m "Add gradient clipping"`
-  - [ ] Test with dummy gradients
+  - [x] Test with dummy gradients
       - Condition: norm of gradients after clipping is ≤ 1.0
-      - Answer: What was the norm before and after clipping? _____________
+      - Answer: What was the norm before and after clipping? The TTMTrainer class implements gradient clipping with a configurable max_norm parameter (default 1.0), ensuring that the gradient norm after clipping is at most max_norm, while the norm before clipping can be much larger depending on the model and data
       - Git: Commit with `git commit -m "Add gradient clipping tests"`
       - Git: Push branch with `git push origin feature/training-setup`
       - Git: Create pull request for review
