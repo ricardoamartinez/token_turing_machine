@@ -710,6 +710,22 @@ Update the README list by marking each item as complete only after meeting its s
       - Git: Create release tag with `git tag -a v1.0.0 -m "First stable release"`
       - Git: Push tag with `git push origin v1.0.0`
 
+## Interactive Visualization System
+
+This project includes a comprehensive interactive visualization and manipulation system for the TTM model. The system allows you to:
+
+1. **Explore training history** in detail, token by token
+2. **Test inference** with custom inputs
+3. **Experiment with state modifications** to understand model behavior
+
+To use the interactive visualization system, run:
+
+```bash
+python interactive_visualization.py [options]
+```
+
+For detailed documentation, see [Interactive Visualization Documentation](docs/interactive_visualization.md).
+
 ## References
 
 - [Token Turing Machines paper](https://arxiv.org/abs/2211.09119)
