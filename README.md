@@ -608,54 +608,98 @@ Update the README list by marking each item as complete only after meeting its s
       - Git: After review, merge with `git checkout main && git merge feature/performance-optimization`
       - Git: Push to main with `git push origin main`
 
-### Phase 11.5: Training Validation and Monitoring Dashboard
+### Phase 11.5: Scalable 3D Voxel Visualization with Automatic Computational Graph Mapping
 
-- [ ] **Implement comprehensive training validation**
-  - [ ] Create training diagnostics suite
-      - Condition: `training_diagnostics.py` analyzes model during training to detect issues
-      - Answer: What issues were detected and resolved? _____________
-      - Git: Create branch with `git checkout -b feature/training-validation`
-  - [ ] Implement gradient flow visualization
-      - Condition: `visualize_gradients()` shows gradient magnitudes across layers
-      - Answer: Were there any gradient vanishing/exploding issues? _____________
-      - Git: Commit with `git commit -m "Add gradient flow visualization"`
-  - [ ] Add attention pattern visualization
-      - Condition: `visualize_attention()` shows attention patterns during inference
-      - Answer: What patterns emerge in the attention maps for multiplication? _____________
-      - Git: Commit with `git commit -m "Add attention pattern visualization"`
-  - [ ] Implement memory usage tracking over time
-      - Condition: `track_memory_usage()` logs memory content changes during sequence processing
-      - Answer: How does memory content evolve during multiplication? _____________
-      - Git: Commit with `git commit -m "Add memory usage tracking"`
-  - [ ] Create loss landscape visualization
-      - Condition: `visualize_loss_landscape()` shows loss surface around current parameters
-      - Answer: Is the model converging to a good minimum? _____________
-      - Git: Commit with `git commit -m "Add loss landscape visualization"`
+- [ ] **Implement Pyglet/OpenGL-based visualization engine with automatic computational graph mapping**
+  - [ ] Set up Pyglet and OpenGL environment with true black background
+      - Condition: `visualization_engine.py` creates a window with true black background (RGB 0,0,0) and initializes OpenGL context
+      - Answer: What OpenGL version is being used for maximum compatibility and performance? _____________
+      - Git: Create branch with `git checkout -b feature/3d-visualization`
+  - [ ] Implement computational graph extraction and introspection
+      - Condition: `graph_extractor.py` automatically extracts the TTM's computational graph using PyTorch hooks or FX
+      - Answer: How many distinct node types were identified in the TTM computational graph? _____________
+      - Git: Commit with `git commit -m "Add automatic computational graph extraction"`
+  - [ ] Create unified tensor-to-voxel mapping interface
+      - Condition: `VisMapper` base class defines a standard interface for mapping any tensor to voxel representation
+      - Answer: What methods must a custom mapper implement to be compatible with the system? _____________
+      - Git: Commit with `git commit -m "Implement extensible VisMapper interface"`
+  - [ ] Develop GPU-optimized vertex and fragment shaders
+      - Condition: Custom GLSL shaders support instanced rendering of 1M+ voxels at 60+ FPS
+      - Answer: What optimization techniques were implemented in the shaders? _____________
+      - Git: Commit with `git commit -m "Add high-performance voxel rendering shaders"`
+  - [ ] Implement dynamic buffer management for real-time updates
+      - Condition: System can update 100,000+ voxels in real-time without frame drops
+      - Answer: What buffer management strategy provides the best performance? _____________
+      - Git: Commit with `git commit -m "Implement efficient buffer management for real-time updates"`
 
-- [ ] **Develop real-time training dashboard**
-  - [ ] Create unified dashboard interface
-      - Condition: `dashboard.py` launches a web interface showing model training stats
-      - Answer: What visualization framework was used? _____________
-      - Git: Commit with `git commit -m "Create unified dashboard interface"`
-  - [ ] Implement real-time metrics tracking
-      - Condition: Dashboard shows loss, accuracy, and other metrics updating in real-time
-      - Answer: What is the update frequency of the dashboard? _____________
-      - Git: Commit with `git commit -m "Add real-time metrics tracking"`
-  - [ ] Add example prediction visualizations
-      - Condition: Dashboard shows current model predictions on sample problems
-      - Answer: How many example predictions are shown? _____________
-      - Git: Commit with `git commit -m "Add example prediction visualizations"`
-  - [ ] Implement parameter distribution tracking
-      - Condition: Dashboard shows histograms of model parameter distributions
-      - Answer: How do parameter distributions change during training? _____________
-      - Git: Commit with `git commit -m "Add parameter distribution tracking"`
-  - [ ] Add training control interface
-      - Condition: Dashboard allows pausing, resuming, and adjusting training parameters
-      - Answer: What training parameters can be adjusted in real-time? _____________
-      - Git: Commit with `git commit -m "Add training control interface"`
-      - Git: Push branch with `git push origin feature/training-validation`
+- [ ] **Create automatic visualization mappers for different data structures**
+  - [ ] Implement generic tensor-to-voxel mapper
+      - Condition: System automatically converts any N-dimensional tensor to an appropriate 3D voxel representation
+      - Answer: How are tensors with more than 3 dimensions mapped to 3D space? _____________
+      - Git: Commit with `git commit -m "Add generic N-dimensional tensor mapper"`
+  - [ ] Develop specialized mappers for common TTM components
+      - Condition: System includes optimized mappers for memory matrices, attention weights, and embeddings
+      - Answer: What specialized visual encodings are used for different tensor types? _____________
+      - Git: Commit with `git commit -m "Add specialized mappers for TTM components"`
+  - [ ] Create computational graph visualization mapper
+      - Condition: System renders the model's computational graph as an interactive 3D network
+      - Answer: How are different operation types visually distinguished in the graph? _____________
+      - Git: Commit with `git commit -m "Implement computational graph visualization"`
+  - [ ] Implement mapper registry with automatic type detection
+      - Condition: System automatically selects the appropriate mapper for any tensor or state
+      - Answer: What criteria are used to match tensors with the most appropriate mapper? _____________
+      - Git: Commit with `git commit -m "Add automatic mapper selection system"`
+
+- [ ] **Develop interactive features and unified interface**
+  - [ ] Implement 3D navigation and camera controls
+      - Condition: Users can fly around, zoom, rotate, and inspect any part of the visualization
+      - Answer: What navigation controls and shortcuts were implemented? _____________
+      - Git: Commit with `git commit -m "Add interactive 3D navigation controls"`
+  - [ ] Create voxel selection, inspection, and editing interface
+      - Condition: Users can hover over voxels for tooltips, click to edit values, and see changes propagate
+      - Answer: How does the system visualize the propagation of edited values through the computational graph? _____________
+      - Git: Commit with `git commit -m "Implement interactive voxel editing and propagation"`
+  - [ ] Develop state timeline and playback controls
+      - Condition: System captures and allows playback of model states across time/tokens
+      - Answer: How many historical states can be stored and replayed? _____________
+      - Git: Commit with `git commit -m "Add state timeline and playback system"`
+  - [ ] Implement single-canvas modular layout with dynamic resizing
+      - Condition: All visualizations (memory, attention, graph, etc.) are visible simultaneously on one screen
+      - Answer: How does the layout adapt to different screen sizes and aspect ratios? _____________
+      - Git: Commit with `git commit -m "Create unified single-canvas layout"`
+  - [ ] Add real-time performance monitoring and optimization
+      - Condition: System maintains 60+ FPS even with complex visualizations by dynamically adjusting detail levels
+      - Answer: What adaptive rendering techniques are used to maintain high performance? _____________
+      - Git: Commit with `git commit -m "Implement adaptive performance optimization"`
+
+- [ ] **Comprehensive testing and validation of visualization system**
+  - [ ] Verify automatic computational graph mapping
+      - Condition: System correctly visualizes the entire TTM computational graph without manual mapping configuration
+      - Answer: How many distinct operations in the TTM model were automatically mapped and visualized? _____________
+      - Git: Commit with `git commit -m "Validate automatic computational graph mapping"`
+  - [ ] Test scalability with large tensors
+      - Condition: System maintains 60+ FPS when visualizing tensors with millions of elements
+      - Answer: What is the largest tensor size that can be visualized while maintaining target performance? _____________
+      - Git: Commit with `git commit -m "Test visualization scalability with large tensors"`
+  - [ ] Validate real-time state editing and propagation
+      - Condition: Editing a memory cell or attention weight correctly propagates through the computational graph
+      - Answer: How quickly does the system update the visualization after a state edit? _____________
+      - Git: Commit with `git commit -m "Validate real-time state editing and propagation"`
+  - [ ] Test integration with training loop
+      - Condition: Visualization system captures and displays model states during actual training
+      - Answer: How does the visualization system impact training performance? _____________
+      - Git: Commit with `git commit -m "Test integration with training loop"`
+  - [ ] Verify all requested features are implemented
+      - Condition: System includes true black background, single-canvas layout, automatic mapping, interactive editing, and high performance
+      - Answer: Which feature required the most optimization to meet requirements? _____________
+      - Git: Commit with `git commit -m "Verify all visualization requirements are met"`
+  - [ ] Create comprehensive demonstration
+      - Condition: `demo.py` showcases all visualization features with the TTM model
+      - Answer: What specific TTM operations provide the most insightful visualizations? _____________
+      - Git: Commit with `git commit -m "Create comprehensive visualization demonstration"`
+      - Git: Push branch with `git push origin feature/3d-visualization`
       - Git: Create pull request for review
-      - Git: After review, merge with `git checkout main && git merge feature/training-validation`
+      - Git: After review, merge with `git checkout main && git merge feature/3d-visualization`
       - Git: Push to main with `git push origin main`
 
 ### Phase 12: Testing and Evaluation
@@ -709,22 +753,6 @@ Update the README list by marking each item as complete only after meeting its s
       - Git: Push to main with `git push origin main`
       - Git: Create release tag with `git tag -a v1.0.0 -m "First stable release"`
       - Git: Push tag with `git push origin v1.0.0`
-
-## Interactive Visualization System
-
-This project includes a comprehensive interactive visualization and manipulation system for the TTM model. The system allows you to:
-
-1. **Explore training history** in detail, token by token
-2. **Test inference** with custom inputs
-3. **Experiment with state modifications** to understand model behavior
-
-To use the interactive visualization system, run:
-
-```bash
-python interactive_visualization.py [options]
-```
-
-For detailed documentation, see [Interactive Visualization Documentation](docs/interactive_visualization.md).
 
 ## References
 
