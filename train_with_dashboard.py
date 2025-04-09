@@ -427,7 +427,11 @@ def train_model(
                         plt.colorbar(im, ax=ax)
                         ax.set_xlabel('Embedding Dimension', color='white')
                         ax.set_ylabel('Memory Slot', color='white')
-                        ax.set_title(f'Memory Content for Example: {dataset.decode(example_input[0])}', color='white')
+                        # Use tokens_to_string from tokenization module
+                        from src.ttm.data.tokenization import tokens_to_string
+                        example_str = tokens_to_string(example_input[0].cpu().numpy())
+                        example_str = example_str.replace("<PAD>", "").replace("<EOS>", "")
+                        ax.set_title(f'Memory Content for Example: {example_str}', color='white')
                         ax.tick_params(colors='white')
                     else:
                         ax.text(0.5, 0.5, "Memory not found in model", ha='center', va='center', color='white')
@@ -468,11 +472,15 @@ def train_model(
                         plt.colorbar(im, ax=ax)
                         ax.set_xlabel('Key Position', color='white')
                         ax.set_ylabel('Query Position', color='white')
-                        ax.set_title(f'Attention Pattern for Example: {dataset.decode(example_input[0])}', color='white')
+                        # Use tokens_to_string from tokenization module
+                        from src.ttm.data.tokenization import tokens_to_string
+                        example_str = tokens_to_string(example_input[0].cpu().numpy())
+                        example_str = example_str.replace("<PAD>", "").replace("<EOS>", "")
+                        ax.set_title(f'Attention Pattern for Example: {example_str}', color='white')
                         ax.tick_params(colors='white')
 
                         # Add token labels if possible
-                        tokens = dataset.decode(example_input[0]).split()
+                        tokens = example_str.split()
                         if len(tokens) <= attn_np.shape[0]:
                             ax.set_xticks(range(len(tokens)))
                             ax.set_xticklabels(tokens, rotation=45, ha='right', color='white')
@@ -497,11 +505,15 @@ def train_model(
                         plt.colorbar(im, ax=ax)
                         ax.set_xlabel('Key Position', color='white')
                         ax.set_ylabel('Query Position', color='white')
-                        ax.set_title(f'Synthetic Attention Pattern for Example: {dataset.decode(example_input[0])}', color='white')
+                        # Use tokens_to_string from tokenization module
+                        from src.ttm.data.tokenization import tokens_to_string
+                        example_str = tokens_to_string(example_input[0].cpu().numpy())
+                        example_str = example_str.replace("<PAD>", "").replace("<EOS>", "")
+                        ax.set_title(f'Synthetic Attention Pattern for Example: {example_str}', color='white')
                         ax.tick_params(colors='white')
 
                         # Add token labels if possible
-                        tokens = dataset.decode(example_input[0]).split()
+                        tokens = example_str.split()
                         if len(tokens) <= attn_np.shape[0]:
                             ax.set_xticks(range(len(tokens)))
                             ax.set_xticklabels(tokens, rotation=45, ha='right', color='white')
