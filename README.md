@@ -6,20 +6,22 @@ Token Turing Machines (TTMs) are sequential, autoregressive models with external
 
 ## Implementation Checklist
 
+Update the README list by marking each item as complete only after meeting its specified condition, ensuring that all related questions are answered and the required Git operations are executed when the condition is satisfied.
+
 ### Phase 1: Environment Setup and Hardware Testing
 
-- [ ] **Set up development environment**
-  - [ ] Install PyTorch
+- [x] **Set up development environment**
+  - [x] Install PyTorch
       - Condition: `import torch` runs without error and `torch.__version__` returns version ≥ 1.10.0
-      - Answer: What PyTorch version was installed? _____________
+      - Answer: What PyTorch version was installed? PyTorch version 2.5.1+cu121
       - Git: Initialize repository with `git init`
-  - [ ] Create project directory structure
+  - [x] Create project directory structure
       - Condition: directories `src/`, `data/`, and `models/` exist
-      - Answer: What additional directories were created, if any? _____________
+      - Answer: What additional directories were created, if any? Created data/ and models/ directories with .gitkeep files
       - Git: Add directories with `git add src/ data/ models/`
-  - [ ] Initialize version control
+  - [x] Initialize version control
       - Condition: `.git/` directory exists
-      - Answer: What is the URL of the remote repository? _____________
+      - Answer: What is the URL of the remote repository? https://github.com/ricardoamartinez/token_turing_machine.git
       - Git: Create initial commit with `git commit -m "Initial project structure"`
       - Git: Add remote with `git remote add origin <repository-url>`
       - Git: Push to remote with `git push -u origin main`
