@@ -56,61 +56,61 @@ Update the README list by marking each item as complete only after meeting its s
 
 ### Phase 2: Core Data Structures
 
-- [ ] **Implement tokenization scheme**
-  - [ ] Define vocabulary size = 13
+- [x] **Implement tokenization scheme**
+  - [x] Define vocabulary size = 13
       - Condition: `VOCAB_SIZE = 13` constant exists in code
-      - Answer: Where is this constant defined (file path)? _____________
+      - Answer: Where is this constant defined (file path)? src/ttm/data/tokenization.py
       - Git: Create branch with `git checkout -b feature/tokenization`
-  - [ ] Assign tokens 0-9 for digits
+  - [x] Assign tokens 0-9 for digits
       - Condition: `DIGIT_TOKENS = range(10)` or equivalent exists in code
-      - Answer: How are digit tokens represented in the code? _____________
+      - Answer: How are digit tokens represented in the code? As a list: `DIGIT_TOKENS = list(range(10))`
       - Git: Commit with `git commit -m "Define digit tokens"`
-  - [ ] Assign token 10 for multiplication symbol
+  - [x] Assign token 10 for multiplication symbol
       - Condition: `TIMES_TOKEN = 10` constant exists in code
-      - Answer: What symbol is displayed for this token? _____________
+      - Answer: What symbol is displayed for this token? The symbol "×" (Unicode multiplication sign)
       - Git: Commit with `git commit -m "Add multiplication symbol token"`
-  - [ ] Assign token 11 for EOS
+  - [x] Assign token 11 for EOS
       - Condition: `EOS_TOKEN = 11` constant exists in code
-      - Answer: How is EOS handled in the tokenization process? _____________
+      - Answer: How is EOS handled in the tokenization process? EOS is added at the end of input and target sequences, and displayed as "<EOS>" in string representations
       - Git: Commit with `git commit -m "Add EOS token"`
-  - [ ] Assign token 12 for padding
+  - [x] Assign token 12 for padding
       - Condition: `PAD_TOKEN = 12` constant exists in code
-      - Answer: How is padding applied to sequences? _____________
+      - Answer: How is padding applied to sequences? Using the `pad_sequence` function that appends PAD_TOKEN to sequences until they reach the specified length
       - Git: Commit with `git commit -m "Add padding token"`
-  - [ ] Create function to convert numbers to token sequences
+  - [x] Create function to convert numbers to token sequences
       - Condition: `number_to_tokens(42)` returns `[4, 2]`
-      - Answer: How does the function handle multi-digit numbers? _____________
+      - Answer: How does the function handle multi-digit numbers? It converts the number to digits by repeatedly dividing by 10 and taking the remainder, then reverses the list to get the correct order
       - Git: Commit with `git commit -m "Implement number to token conversion"`
-  - [ ] Create function to convert token sequences back to strings
+  - [x] Create function to convert token sequences back to strings
       - Condition: `tokens_to_string([4, 2])` returns `"42"`
-      - Answer: How does the function handle special tokens like EOS? _____________
+      - Answer: How does the function handle special tokens like EOS? Special tokens are converted to their string representations: TIMES_TOKEN to "×", EOS_TOKEN to "<EOS>", and PAD_TOKEN to "<PAD>"
       - Git: Commit with `git commit -m "Implement token to string conversion"`
       - Git: Push branch with `git push origin feature/tokenization`
 
-- [ ] **Implement dataset class**
-  - [ ] Create MultiplicationDataset class
+- [x] **Implement dataset class**
+  - [x] Create MultiplicationDataset class
       - Condition: `MultiplicationDataset` class exists with `__init__` and `generate_batch` methods
-      - Answer: What parameters does the constructor accept? _____________
+      - Answer: What parameters does the constructor accept? The constructor accepts batch_size (default=32), max_seq_len (default=20), seed (optional), and device (optional PyTorch device)
       - Git: Create branch with `git checkout -b feature/dataset`
-  - [ ] Implement difficulty stages
+  - [x] Implement difficulty stages
       - Condition: `stages` attribute contains exactly 7 tuples of (min_val, max_val)
-      - Answer: What are the ranges for each difficulty stage? _____________
+      - Answer: What are the ranges for each difficulty stage? Stage 1: (1, 9), Stage 2: (10, 99), Stage 3: (100, 999), Stage 4: (1000, 9999), Stage 5: (1, 99), Stage 6: (1, 999), Stage 7: (1, 9999)
       - Git: Commit with `git commit -m "Implement difficulty stages"`
-  - [ ] Implement batch generation
+  - [x] Implement batch generation
       - Condition: `generate_batch()` returns two arrays of shape (batch_size, seq_len)
-      - Answer: What is the maximum sequence length used? _____________
+      - Answer: What is the maximum sequence length used? max_seq_len parameter (default=20) determines the maximum sequence length
       - Git: Commit with `git commit -m "Implement batch generation"`
-  - [ ] Implement data augmentation techniques (as used in TTM paper)
+  - [x] Implement data augmentation techniques (as used in TTM paper)
       - Condition: `augment_batch(inputs, targets)` applies augmentation to training examples
-      - Answer: What augmentation techniques are implemented? _____________
+      - Answer: What augmentation techniques are implemented? 1) Swapping operands (a × b = b × a), 2) Random permutation of examples within the batch
       - Git: Commit with `git commit -m "Add data augmentation techniques from TTM paper"`
-  - [ ] Implement difficulty progression
+  - [x] Implement difficulty progression
       - Condition: `increase_difficulty()` increments `current_stage` by 1
-      - Answer: What triggers difficulty progression during training? _____________
+      - Answer: What triggers difficulty progression during training? The `should_increase_difficulty` method checks if the average accuracy over the last 5 evaluations exceeds a threshold (default=0.9)
       - Git: Commit with `git commit -m "Add difficulty progression"`
-  - [ ] Test dataset with small batch
+  - [x] Test dataset with small batch
       - Condition: `dataset.generate_batch()` returns valid inputs and targets
-      - Answer: Provide an example input-target pair from the test: _____________
+      - Answer: Provide an example input-target pair from the test: Input: "5×7<EOS>" and Target: "35<EOS>" (with padding tokens omitted for clarity)
       - Git: Commit with `git commit -m "Add dataset tests"`
       - Git: Push branch with `git push origin feature/dataset`
       - Git: Create pull request for review
