@@ -14,6 +14,12 @@ import os
 from typing import Dict, List, Tuple, Any, Optional, Union
 import dash
 
+from src.ttm.visualization.theme import COLORS, STYLES
+from src.ttm.visualization.components import (
+    create_memory_heatmap, create_attention_heatmap, create_parameter_histogram,
+    create_timeline_plot, create_state_transition_graph
+)
+
 from src.ttm.data.tokenization import (
     create_multiplication_example,
     tokens_to_string,
