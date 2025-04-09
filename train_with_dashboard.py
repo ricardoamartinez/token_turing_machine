@@ -376,14 +376,33 @@ def train_model(
                 # Create memory visualization
                 visualize_model_memory(model, inputs[:1], targets[:1], global_step, os.path.join(output_dir, 'memory_viz'))
 
-                # Update dashboard with memory visualization
+                # Update dashboard with memory and attention visualizations based on example predictions
                 if dashboard:
+                    # Get a sample example for visualization
+                    example_input, example_target = dataset.get_example(difficulty_stage=dataset.current_stage)
+                    example_input = example_input.unsqueeze(0).to(device)  # Add batch dimension
+                    example_target = example_target.unsqueeze(0).to(device)  # Add batch dimension
+
+                    # Forward pass with the example to get memory and attention
+                    with torch.no_grad():
+                        # Initialize memory
+                        if hasattr(model, 'memory_less') and not model.memory_less:
+                            example_memory = model.initialize_memory(batch_size=1)
+                        else:
+                            example_memory = None
+
+                        # Forward pass with attention return
+                        example_logits, new_example_memory = model(example_input, example_memory)
+
                     # Create memory visualization figure
                     fig, ax = plt.subplots(figsize=(10, 6))
+                    plt.style.use('dark_background')
 
                     # Check different possible memory attribute locations
                     memory = None
-                    if hasattr(model, 'memory_module'):
+                    if new_example_memory is not None:
+                        memory = new_example_memory
+                    elif hasattr(model, 'memory_module'):
                         if hasattr(model.memory_module, 'memory'):
                             memory = model.memory_module.memory
                         elif hasattr(model.memory_module, 'initial_memory'):
@@ -396,51 +415,64 @@ def train_model(
 
                         # Create heatmap
                         memory_np = memory.detach().cpu().numpy()
-                        im = ax.imshow(memory_np, cmap='viridis', aspect='auto')
+                        im = ax.imshow(memory_np, cmap='plasma', aspect='auto')
                         plt.colorbar(im, ax=ax)
-                        ax.set_xlabel('Embedding Dimension')
-                        ax.set_ylabel('Memory Slot')
-                        ax.set_title(f'Memory Content (Step {global_step})')
+                        ax.set_xlabel('Embedding Dimension', color='white')
+                        ax.set_ylabel('Memory Slot', color='white')
+                        ax.set_title(f'Memory Content for Example: {dataset.decode(example_input[0])}', color='white')
+                        ax.tick_params(colors='white')
                     else:
-                        ax.text(0.5, 0.5, "Memory not found in model", ha='center', va='center')
-                        ax.set_title(f'Memory Content (Step {global_step})')
+                        ax.text(0.5, 0.5, "Memory not found in model", ha='center', va='center', color='white')
+                        ax.set_title(f'Memory Content (Step {global_step})', color='white')
+
+                    # Set figure background to black
+                    fig.patch.set_facecolor('black')
+                    ax.set_facecolor('black')
 
                     dashboard.update_memory_visualization(fig)
                     plt.close(fig)
 
                     # Create attention visualization figure
                     fig, ax = plt.subplots(figsize=(10, 6))
+                    plt.style.use('dark_background')
 
                     # Try to extract attention weights
                     attention_weights = None
-                    if hasattr(model, 'transformer_layers'):
-                        # For models with transformer_layers attribute
-                        for i, layer in enumerate(model.transformer_layers):
-                            if hasattr(layer, 'attention') and hasattr(layer.attention, 'attn_output_weights'):
-                                attention_weights = layer.attention.attn_output_weights
-                                break
-                    elif hasattr(model, 'transformer') and hasattr(model.transformer, 'layers'):
-                        # For models with transformer.layers attribute
-                        for i, layer in enumerate(model.transformer.layers):
-                            if hasattr(layer, 'self_attn') and hasattr(layer.self_attn, 'attn_output_weights'):
-                                attention_weights = layer.self_attn.attn_output_weights
-                                break
+                    if hasattr(model, 'last_attention_weights'):
+                        attention_weights = model.last_attention_weights
 
                     if attention_weights is not None:
-                        # Get the first batch item and first head
-                        if attention_weights.dim() >= 4:  # [batch_size, num_heads, seq_len, seq_len]
-                            attention_weights = attention_weights[0, 0]  # [seq_len, seq_len]
+                        # Get the first batch item, first layer, and first head
+                        if isinstance(attention_weights, list):
+                            # If it's a list of layers, take the last layer
+                            layer_weights = attention_weights[-1]
+                            if layer_weights.dim() >= 4:  # [batch_size, num_heads, seq_len, seq_len]
+                                layer_weights = layer_weights[0, 0]  # [seq_len, seq_len]
+                            attn_np = layer_weights.detach().cpu().numpy()
+                        else:
+                            # Direct tensor
+                            if attention_weights.dim() >= 4:  # [batch_size, num_heads, seq_len, seq_len]
+                                attention_weights = attention_weights[0, 0]  # [seq_len, seq_len]
+                            attn_np = attention_weights.detach().cpu().numpy()
 
                         # Create heatmap
-                        attn_np = attention_weights.detach().cpu().numpy()
-                        im = ax.imshow(attn_np, cmap='viridis', aspect='auto')
+                        im = ax.imshow(attn_np, cmap='plasma', aspect='auto')
                         plt.colorbar(im, ax=ax)
-                        ax.set_xlabel('Key Position')
-                        ax.set_ylabel('Query Position')
-                        ax.set_title(f'Attention Pattern (Step {global_step})')
+                        ax.set_xlabel('Key Position', color='white')
+                        ax.set_ylabel('Query Position', color='white')
+                        ax.set_title(f'Attention Pattern for Example: {dataset.decode(example_input[0])}', color='white')
+                        ax.tick_params(colors='white')
+
+                        # Add token labels if possible
+                        tokens = dataset.decode(example_input[0]).split()
+                        if len(tokens) <= attn_np.shape[0]:
+                            ax.set_xticks(range(len(tokens)))
+                            ax.set_xticklabels(tokens, rotation=45, ha='right', color='white')
+                            ax.set_yticks(range(len(tokens)))
+                            ax.set_yticklabels(tokens, color='white')
                     else:
                         # Create a synthetic attention pattern for visualization
-                        seq_len = inputs.size(1)
+                        seq_len = example_input.size(1)
                         synthetic_attention = torch.zeros(seq_len, seq_len)
 
                         # Add a diagonal pattern
@@ -453,11 +485,24 @@ def train_model(
 
                         # Create heatmap
                         attn_np = synthetic_attention.numpy()
-                        im = ax.imshow(attn_np, cmap='viridis', aspect='auto')
+                        im = ax.imshow(attn_np, cmap='plasma', aspect='auto')
                         plt.colorbar(im, ax=ax)
-                        ax.set_xlabel('Key Position')
-                        ax.set_ylabel('Query Position')
-                        ax.set_title(f'Synthetic Attention Pattern (Step {global_step})')
+                        ax.set_xlabel('Key Position', color='white')
+                        ax.set_ylabel('Query Position', color='white')
+                        ax.set_title(f'Synthetic Attention Pattern for Example: {dataset.decode(example_input[0])}', color='white')
+                        ax.tick_params(colors='white')
+
+                        # Add token labels if possible
+                        tokens = dataset.decode(example_input[0]).split()
+                        if len(tokens) <= attn_np.shape[0]:
+                            ax.set_xticks(range(len(tokens)))
+                            ax.set_xticklabels(tokens, rotation=45, ha='right', color='white')
+                            ax.set_yticks(range(len(tokens)))
+                            ax.set_yticklabels(tokens, color='white')
+
+                    # Set figure background to black
+                    fig.patch.set_facecolor('black')
+                    ax.set_facecolor('black')
 
                     dashboard.update_attention_visualization(fig)
                     plt.close(fig)

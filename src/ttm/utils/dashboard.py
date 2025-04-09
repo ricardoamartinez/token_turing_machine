@@ -136,7 +136,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f5f5f5;
+            background-color: #000000;
+            color: #e0e0e0;
         }
         .container {
             max-width: 1200px;
@@ -144,12 +145,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
             padding: 20px;
         }
         .header {
-            background-color: #333;
-            color: white;
+            background-color: #000000;
+            color: #e0e0e0;
             padding: 10px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            border-bottom: 1px solid #333;
         }
         .header h1 {
             margin: 0;
@@ -208,10 +210,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             margin-top: 20px;
         }
         .card {
-            background-color: white;
+            background-color: #121212;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 4px rgba(255, 255, 255, 0.1);
             padding: 20px;
+            border: 1px solid #333;
         }
         .card h2 {
             margin-top: 0;
@@ -224,14 +227,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
             gap: 10px;
         }
         .metric {
-            background-color: #f9f9f9;
+            background-color: #1e1e1e;
             padding: 10px;
             border-radius: 4px;
+            border: 1px solid #333;
         }
         .metric h3 {
             margin: 0;
             font-size: 14px;
-            color: #666;
+            color: #aaaaaa;
         }
         .metric p {
             margin: 5px 0 0;
@@ -253,10 +257,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             margin-top: 10px;
         }
         .example {
-            background-color: #f9f9f9;
+            background-color: #1e1e1e;
             padding: 10px;
             border-radius: 4px;
             margin-bottom: 10px;
+            border: 1px solid #333;
         }
         .example p {
             margin: 0;
@@ -271,11 +276,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
             margin-top: 10px;
         }
         .issue {
-            background-color: #fff0f0;
+            background-color: #2a1515;
             padding: 10px;
             border-radius: 4px;
             margin-bottom: 10px;
-            border-left: 4px solid red;
+            border-left: 4px solid #ff3333;
+            color: #ffaaaa;
         }
         .visualization-container {
             width: 100%;
@@ -295,8 +301,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
         .footer {
             margin-top: 20px;
             text-align: center;
-            color: #666;
+            color: #888888;
             font-size: 12px;
+            border-top: 1px solid #333;
+            padding-top: 10px;
         }
     </style>
 </head>
@@ -402,22 +410,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         {
                             label: 'Loss',
                             data: [],
-                            borderColor: 'red',
-                            backgroundColor: 'rgba(255, 0, 0, 0.1)',
+                            borderColor: '#ff6666',
+                            backgroundColor: 'rgba(255, 102, 102, 0.2)',
                             fill: true
                         },
                         {
                             label: 'Position Accuracy',
                             data: [],
-                            borderColor: 'blue',
-                            backgroundColor: 'rgba(0, 0, 255, 0.1)',
+                            borderColor: '#6699ff',
+                            backgroundColor: 'rgba(102, 153, 255, 0.2)',
                             fill: true
                         },
                         {
                             label: 'Sequence Accuracy',
                             data: [],
-                            borderColor: 'green',
-                            backgroundColor: 'rgba(0, 255, 0, 0.1)',
+                            borderColor: '#66ff99',
+                            backgroundColor: 'rgba(102, 255, 153, 0.2)',
                             fill: true
                         }
                     ]
@@ -429,13 +437,27 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         x: {
                             title: {
                                 display: true,
-                                text: 'Epoch'
+                                text: 'Epoch',
+                                color: '#e0e0e0'
+                            },
+                            ticks: {
+                                color: '#e0e0e0'
+                            },
+                            grid: {
+                                color: '#333333'
                             }
                         },
                         y: {
                             title: {
                                 display: true,
-                                text: 'Value'
+                                text: 'Value',
+                                color: '#e0e0e0'
+                            },
+                            ticks: {
+                                color: '#e0e0e0'
+                            },
+                            grid: {
+                                color: '#333333'
                             }
                         }
                     },
@@ -449,7 +471,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                                 boxWidth: 10,
                                 font: {
                                     size: 10
-                                }
+                                },
+                                color: '#e0e0e0'
                             }
                         }
                     }
@@ -465,12 +488,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         {
                             label: 'Mean',
                             data: [],
-                            backgroundColor: 'rgba(54, 162, 235, 0.5)'
+                            backgroundColor: 'rgba(102, 153, 255, 0.5)'
                         },
                         {
                             label: 'Std',
                             data: [],
-                            backgroundColor: 'rgba(255, 99, 132, 0.5)'
+                            backgroundColor: 'rgba(255, 102, 102, 0.5)'
                         }
                     ]
                 },
@@ -481,16 +504,27 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         x: {
                             title: {
                                 display: true,
-                                text: 'Parameter'
+                                text: 'Parameter',
+                                color: '#e0e0e0'
                             },
                             ticks: {
                                 display: false // Hide x-axis labels for better display
+                            },
+                            grid: {
+                                color: '#333333'
                             }
                         },
                         y: {
                             title: {
                                 display: true,
-                                text: 'Value'
+                                text: 'Value',
+                                color: '#e0e0e0'
+                            },
+                            ticks: {
+                                color: '#e0e0e0'
+                            },
+                            grid: {
+                                color: '#333333'
                             }
                         }
                     },
@@ -504,7 +538,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                                 boxWidth: 10,
                                 font: {
                                     size: 10
-                                }
+                                },
+                                color: '#e0e0e0'
                             }
                         }
                     }
