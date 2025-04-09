@@ -1,0 +1,6 @@
+Transformer Benchmark Results
+============================
+
+CPU: 8.1049 ms
+CUDA: 0.6193 ms
+Speedup: 13.09x

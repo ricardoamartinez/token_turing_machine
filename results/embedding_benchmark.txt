@@ -1,0 +1,6 @@
+Token Embedding Benchmark Results
+================================
+
+CPU: 0.1322 ms
+CUDA: 0.0000 ms
+Speedup: infx
