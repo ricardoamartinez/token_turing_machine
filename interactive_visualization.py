@@ -14,6 +14,7 @@ from datetime import datetime
 from src.ttm.visualization.interactive_dashboard import TTMDashboard
 from src.ttm.visualization.training_callbacks import register_training_callbacks
 from src.ttm.visualization.inference_callbacks import register_inference_callbacks
+import dash
 
 
 def main():
@@ -27,20 +28,20 @@ def main():
                         help='Port to run the dashboard on')
     parser.add_argument('--debug', action='store_true',
                         help='Run in debug mode')
-    
+
     args = parser.parse_args()
-    
+
     # Create dashboard
     dashboard = TTMDashboard(
         state_history_path=args.state_history,
         model_path=args.model,
         port=args.port
     )
-    
+
     # Register callbacks
     register_training_callbacks(dashboard.app, dashboard)
     register_inference_callbacks(dashboard.app, dashboard)
-    
+
     # Run server
     print(f"Starting dashboard on http://localhost:{args.port}")
     dashboard.run_server(debug=args.debug)

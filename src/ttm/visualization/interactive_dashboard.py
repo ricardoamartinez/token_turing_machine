@@ -56,6 +56,7 @@ class TTMDashboard:
         self.state_history = {}
         self.current_state = {}
         self.modified_states = {}
+        self.inference_state = None
         self.model = None
 
         # Load state history if provided
@@ -98,7 +99,26 @@ class TTMDashboard:
             filepath: Path to model checkpoint
         """
         try:
-            self.model = torch.load(filepath)
+            # In a real implementation, we would need to initialize the model first
+            # and then load the state dict
+            from src.ttm.model.ttm import TTM
+
+            # Create a dummy model for demonstration purposes
+            self.model = TTM(
+                vocab_size=20,  # Placeholder value
+                d_model=128,    # Placeholder value
+                memory_size=16, # Placeholder value
+                n_layers=4      # Placeholder value
+            )
+
+            # Load the state dict
+            checkpoint = torch.load(filepath)
+            if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+                self.model.load_state_dict(checkpoint['model_state_dict'])
+            else:
+                # Try loading directly if it's just the state dict
+                self.model.load_state_dict(checkpoint)
+
             print(f"Model loaded from {filepath}")
         except Exception as e:
             print(f"Error loading model: {e}")
@@ -322,19 +342,220 @@ class TTMDashboard:
 
     def _generate_inference_mode_layout(self):
         """Generate layout for inference testing mode."""
-        # Create a hidden div to trigger the callback
+        # Get available checkpoints
+        checkpoints = []
+        if os.path.exists('./checkpoints'):
+            for file in os.listdir('./checkpoints'):
+                if file.endswith('.pt'):
+                    checkpoints.append(os.path.join('./checkpoints', file))
+
         return html.Div([
-            dcc.Interval(id='inference-mode-trigger', interval=1000, n_intervals=0, max_intervals=1),
-            html.Div(id='inference-mode-layout')
+            # Checkpoint selection and input
+            html.Div([
+                html.Div([
+                    html.H3("Model Selection"),
+                    html.Label("Checkpoint:"),
+                    dcc.Dropdown(
+                        id='checkpoint-dropdown',
+                        options=[{'label': os.path.basename(cp), 'value': cp} for cp in checkpoints],
+                        value=checkpoints[0] if checkpoints else None,
+                        style={'color': 'black'}
+                    ),
+                    html.Button('Load Model', id='load-model-button', n_clicks=0,
+                               style={'marginTop': '10px'})
+                ], style={'width': '30%', 'display': 'inline-block', 'verticalAlign': 'top',
+                          'padding': '20px', 'backgroundColor': '#111111', 'borderRadius': '5px'}),
+
+                html.Div([
+                    html.H3("Test Input"),
+                    html.Div([
+                        html.Label("First Number:"),
+                        dcc.Input(id='num1-input', type='number', value=5,
+                                 style={'marginRight': '10px', 'width': '100px'}),
+                        html.Label("Second Number:"),
+                        dcc.Input(id='num2-input', type='number', value=7,
+                                 style={'width': '100px'})
+                    ], style={'marginBottom': '20px'}),
+                    html.Button('Run Inference', id='run-inference-button', n_clicks=0)
+                ], style={'width': '30%', 'display': 'inline-block', 'verticalAlign': 'top',
+                          'padding': '20px', 'marginLeft': '20px', 'backgroundColor': '#111111',
+                          'borderRadius': '5px'}),
+
+                html.Div([
+                    html.H3("Results"),
+                    html.Div(id='inference-results')
+                ], style={'width': '30%', 'display': 'inline-block', 'verticalAlign': 'top',
+                          'padding': '20px', 'marginLeft': '20px', 'backgroundColor': '#111111',
+                          'borderRadius': '5px'})
+            ], style={'marginBottom': '20px'}),
+
+            # Token navigation for inference
+            html.Div([
+                html.H3("Inference Step Navigation"),
+                html.Div([
+                    html.Label("Token:"),
+                    dcc.Slider(
+                        id='inference-token-slider',
+                        min=0,
+                        max=20,  # Default max tokens
+                        value=0,
+                        step=1
+                    )
+                ], style={'marginBottom': '20px'}),
+
+                html.Div([
+                    html.Button('Step Forward', id='inference-step-forward', n_clicks=0,
+                               style={'marginRight': '10px'}),
+                    html.Button('Step Backward', id='inference-step-backward', n_clicks=0)
+                ])
+            ], style={'marginBottom': '20px', 'padding': '20px', 'backgroundColor': '#111111',
+                      'borderRadius': '5px'}),
+
+            # State visualization
+            html.Div([
+                html.H2("State Visualization", style={'textAlign': 'center'}),
+                dcc.Tabs([
+                    dcc.Tab(label='Memory', children=[
+                        html.Div([
+                            html.Div([
+                                html.H4("Memory Controls"),
+                                html.Label("Memory Slot:"),
+                                dcc.Slider(
+                                    id='inference-memory-slot-slider',
+                                    min=0,
+                                    max=15,  # Assuming 16 memory slots
+                                    value=0,
+                                    step=1
+                                )
+                            ], style={'width': '25%', 'display': 'inline-block', 'verticalAlign': 'top'}),
+
+                            html.Div([
+                                dcc.Graph(id='inference-memory-heatmap')
+                            ], style={'width': '70%', 'display': 'inline-block', 'verticalAlign': 'top'})
+                        ])
+                    ]),
+
+                    dcc.Tab(label='Attention', children=[
+                        html.Div([
+                            html.Div([
+                                html.H4("Attention Controls"),
+                                html.Label("Layer:"),
+                                dcc.Slider(
+                                    id='inference-attention-layer-slider',
+                                    min=0,
+                                    max=3,  # Assuming 4 layers
+                                    value=0,
+                                    step=1
+                                ),
+                                html.Label("Head:"),
+                                dcc.Slider(
+                                    id='inference-attention-head-slider',
+                                    min=0,
+                                    max=3,  # Assuming 4 heads
+                                    value=0,
+                                    step=1
+                                )
+                            ], style={'width': '25%', 'display': 'inline-block', 'verticalAlign': 'top'}),
+
+                            html.Div([
+                                dcc.Graph(id='inference-attention-heatmap')
+                            ], style={'width': '70%', 'display': 'inline-block', 'verticalAlign': 'top'})
+                        ])
+                    ])
+                ], style={'color': 'white', 'backgroundColor': '#111111'})
+            ])
         ])
 
     def _generate_experiment_mode_layout(self):
         """Generate layout for state experimentation mode."""
-        # Placeholder for now - will be implemented in next part
         return html.Div([
-            html.H2("State Experimentation Mode", style={'textAlign': 'center'}),
-            html.P("This feature will be implemented in the next part.",
-                  style={'textAlign': 'center'})
+            # Source state selection
+            html.Div([
+                html.Div([
+                    html.H3("Source State Selection"),
+                    html.Label("Source:"),
+                    dcc.RadioItems(
+                        id='source-selection',
+                        options=[
+                            {'label': 'Training History', 'value': 'training'},
+                            {'label': 'Inference Result', 'value': 'inference'}
+                        ],
+                        value='training'
+                    )
+                ], style={'width': '30%', 'display': 'inline-block', 'verticalAlign': 'top',
+                          'padding': '20px', 'backgroundColor': '#111111', 'borderRadius': '5px'}),
+
+                html.Div([
+                    html.H3("State Selection"),
+                    html.Label("Component:"),
+                    dcc.Dropdown(
+                        id='component-dropdown',
+                        options=[
+                            {'label': 'Memory', 'value': 'memory'},
+                            {'label': 'Attention Weights', 'value': 'attention'}
+                        ],
+                        value='memory',
+                        style={'color': 'black'}
+                    )
+                ], style={'width': '30%', 'display': 'inline-block', 'verticalAlign': 'top',
+                          'padding': '20px', 'marginLeft': '20px', 'backgroundColor': '#111111',
+                          'borderRadius': '5px'}),
+
+                html.Div([
+                    html.H3("Experiment Controls"),
+                    html.Button('Load State', id='load-state-button', n_clicks=0,
+                               style={'marginBottom': '10px', 'width': '100%'}),
+                    html.Button('Apply Changes', id='apply-changes-button', n_clicks=0,
+                               style={'marginBottom': '10px', 'width': '100%'}),
+                    html.Button('Run Forward Pass', id='run-forward-button', n_clicks=0,
+                               style={'marginBottom': '10px', 'width': '100%'}),
+                    html.Button('Reset Experiment', id='reset-experiment-button', n_clicks=0,
+                               style={'width': '100%'})
+                ], style={'width': '30%', 'display': 'inline-block', 'verticalAlign': 'top',
+                          'padding': '20px', 'marginLeft': '20px', 'backgroundColor': '#111111',
+                          'borderRadius': '5px'})
+            ], style={'marginBottom': '20px'}),
+
+            # State editor and visualization
+            html.Div([
+                html.Div([
+                    html.H3("State Editor"),
+                    html.Div(id='state-editor', children=[
+                        html.P("Select a state and click 'Load State' to begin editing.")
+                    ])
+                ], style={'width': '45%', 'display': 'inline-block', 'verticalAlign': 'top',
+                          'padding': '20px', 'backgroundColor': '#111111', 'borderRadius': '5px'}),
+
+                html.Div([
+                    html.H3("State Visualization"),
+                    html.Div(id='experiment-visualization', children=[
+                        html.P("No state loaded for visualization.")
+                    ])
+                ], style={'width': '45%', 'display': 'inline-block', 'verticalAlign': 'top',
+                          'padding': '20px', 'marginLeft': '20px', 'backgroundColor': '#111111',
+                          'borderRadius': '5px'})
+            ], style={'marginBottom': '20px'}),
+
+            # Results comparison
+            html.Div([
+                html.H3("Results Comparison"),
+                html.Div([
+                    html.Div([
+                        html.H4("Original Output"),
+                        html.Div(id='original-output', children=[
+                            html.P("No original output available.")
+                        ])
+                    ], style={'width': '45%', 'display': 'inline-block', 'verticalAlign': 'top'}),
+
+                    html.Div([
+                        html.H4("Modified Output"),
+                        html.Div(id='modified-output', children=[
+                            html.P("No modified output available.")
+                        ])
+                    ], style={'width': '45%', 'display': 'inline-block', 'verticalAlign': 'top',
+                              'marginLeft': '20px'})
+                ])
+            ], style={'padding': '20px', 'backgroundColor': '#111111', 'borderRadius': '5px'})
         ])
 
     def run_server(self, debug: bool = True):
@@ -344,4 +565,4 @@ class TTMDashboard:
         Args:
             debug: Whether to run in debug mode
         """
-        self.app.run_server(debug=debug, port=self.port)
+        self.app.run(debug=debug, port=self.port)
