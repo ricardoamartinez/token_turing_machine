@@ -214,26 +214,26 @@ Update the README list by marking each item as complete only after meeting its s
 
 ### Phase 5: Transformer Processing Unit
 
-- [ ] **Implement Transformer processing unit**
-  - [ ] Create multi-head self-attention module
+- [x] **Implement Transformer processing unit**
+  - [x] Create multi-head self-attention module
       - Condition: `MultiHeadAttention(dim=128, heads=4)` class exists with forward method
-      - Answer: How is attention scaling implemented? _____________
+      - Answer: How is attention scaling implemented? Attention scores are scaled by 1/sqrt(head_dim) where head_dim is the dimension of each attention head (dim / num_heads)
       - Git: Create branch with `git checkout -b feature/transformer-unit`
-  - [ ] Create feed-forward network module
+  - [x] Create feed-forward network module
       - Condition: `FeedForward(dim=128, hidden_dim=512)` class exists with forward method
-      - Answer: What activation function is used? _____________
+      - Answer: What activation function is used? GELU (Gaussian Error Linear Unit) is used as the default activation function, with options for ReLU and Swish
       - Git: Commit with `git commit -m "Implement feed-forward network"`
-  - [ ] Create Transformer block
+  - [x] Create Transformer block
       - Condition: `TransformerBlock(dim=128, heads=4)` class exists with forward method
-      - Answer: What normalization technique is used (pre/post-norm)? _____________
+      - Answer: What normalization technique is used (pre/post-norm)? Pre-normalization is used by default (norm_first=True), which applies layer normalization before each sub-layer
       - Git: Commit with `git commit -m "Create transformer block"`
-  - [ ] Stack multiple Transformer blocks (4 blocks with hidden size 512 as in TTM paper)
+  - [x] Stack multiple Transformer blocks (4 blocks with hidden size 512 as in TTM paper)
       - Condition: `TransformerStack(dim=128, depth=4, heads=4, hidden_dim=512)` class exists with forward method
-      - Answer: How are residual connections implemented? _____________
+      - Answer: How are residual connections implemented? Residual connections are implemented by adding the input to the output of each sub-layer (x + dropout(sublayer(norm(x))) for pre-norm)
       - Git: Commit with `git commit -m "Implement stacked transformer blocks with 4 layers and hidden size 512 as in TTM paper"`
-  - [ ] Test Transformer with dummy inputs
+  - [x] Test Transformer with dummy inputs
       - Condition: `transformer(torch.randn(2, 16, 128)).shape` equals [2, 16, 128]
-      - Answer: What is the FLOPS count for a single forward pass? _____________
+      - Answer: What is the FLOPS count for a single forward pass? The FLOPS count varies with sequence length and model size, but for the TTM configuration (4 layers, hidden size 512), it's approximately 16 * 16 * 512 * 4 * 2 = 1,048,576 FLOPS for self-attention and 16 * 512 * 2048 * 4 * 2 = 67,108,864 FLOPS for feed-forward networks
       - Git: Commit with `git commit -m "Add transformer tests"`
       - Git: Push branch with `git push origin feature/transformer-unit`
       - Git: Create pull request for review
