@@ -1,0 +1,6 @@
+Matrix Multiplication Benchmark Results
+=====================================
+
+CPU: 0.0623 ms
+CUDA: 0.0000 ms
+Speedup: infx
