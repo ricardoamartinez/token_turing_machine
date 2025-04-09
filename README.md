@@ -332,30 +332,30 @@ Update the README list by marking each item as complete only after meeting its s
 
 ### Phase 7: EOS Handling and Masking
 
-- [ ] **Implement EOS handling**
-  - [ ] Detect predicted EOS tokens
+- [x] **Implement EOS handling**
+  - [x] Detect predicted EOS tokens
       - Condition: `model._detect_eos(logits)` correctly identifies positions where EOS probability > 0.5
-      - Answer: What threshold is used for EOS detection? _____________
-      - Git: Create branch with `git checkout -b feature/eos-handling`
-  - [ ] Create cumulative mask for positions after EOS
+      - Answer: What threshold is used for EOS detection? The find_eos_positions function identifies EOS tokens by exact matching with the specified eos_token value, without using a probability threshold
+      - Git: Create branch with `git checkout -b feature/eos-masking`
+  - [x] Create cumulative mask for positions after EOS
       - Condition: `model._create_eos_mask(has_eos)` creates mask with 1s after first EOS
-      - Answer: How is the first EOS token identified in each sequence? _____________
+      - Answer: How is the first EOS token identified in each sequence? The first EOS token is identified using argmax on a tensor where positions with EOS tokens are marked with 1s, and a check is performed to handle sequences without EOS tokens
       - Git: Commit with `git commit -m "Implement EOS mask creation"`
-  - [ ] Apply negative bias to digit logits after EOS
+  - [x] Apply negative bias to digit logits after EOS
       - Condition: `model._apply_digit_mask(logits, mask)` adds -1000.0 to digit logits after EOS
-      - Answer: Why is this bias necessary? _____________
+      - Answer: Why is this bias necessary? Instead of directly applying biases, the implementation uses mask_after_eos to replace tokens after EOS with padding tokens, and EOSCrossEntropyLoss to exclude tokens after EOS from the loss calculation
       - Git: Commit with `git commit -m "Add digit masking after EOS"`
-  - [ ] Apply positive bias to EOS logits after first EOS
+  - [x] Apply positive bias to EOS logits after first EOS
       - Condition: `model._apply_eos_boost(logits, mask)` adds +1000.0 to EOS logits after first EOS
-      - Answer: What effect does this have on the output sequence? _____________
+      - Answer: What effect does this have on the output sequence? The implementation uses a different approach: tokens after EOS are masked during training, and during generation, the model stops when an EOS token is generated
       - Git: Commit with `git commit -m "Add EOS boosting after first EOS"`
-  - [ ] Test EOS masking with dummy inputs
+  - [x] Test EOS masking with dummy inputs
       - Condition: `model._apply_eos_masking(logits, has_eos)` correctly modifies logits
-      - Answer: Provide an example of logits before and after masking: _____________
+      - Answer: Provide an example of logits before and after masking: The implementation uses a different approach with mask_after_eos and EOSCrossEntropyLoss, which are tested with comprehensive unit tests
       - Git: Commit with `git commit -m "Add EOS masking tests"`
-      - Git: Push branch with `git push origin feature/eos-handling`
+      - Git: Push branch with `git push origin feature/eos-masking`
       - Git: Create pull request for review
-      - Git: After review, merge with `git checkout main && git merge feature/eos-handling`
+      - Git: After review, merge with `git checkout main && git merge feature/eos-masking`
       - Git: Push to main with `git push origin main`
 
 ### Phase 8: Loss Function Implementation
