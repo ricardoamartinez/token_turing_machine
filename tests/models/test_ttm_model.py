@@ -1,0 +1,234 @@
+"""
+Tests for the Token Turing Machine (TTM) model.
+"""
+
+import unittest
+import torch
+import sys
+import os
+
+# Add the src directory to the Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
+from src.ttm.models.ttm_model import (
+    TokenEmbedding,
+    OutputHead,
+    TokenTuringMachine
+)
+
+
+class TestTokenEmbedding(unittest.TestCase):
+    """Test cases for the TokenEmbedding class."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        self.vocab_size = 1000
+        self.embedding_dim = 64
+        self.max_seq_len = 20
+        self.batch_size = 2
+        self.seq_len = 10
+        self.embedding = TokenEmbedding(
+            vocab_size=self.vocab_size,
+            embedding_dim=self.embedding_dim,
+            max_seq_len=self.max_seq_len
+        )
+        
+        # Create random token indices
+        self.tokens = torch.randint(0, self.vocab_size, (self.batch_size, self.seq_len))
+    
+    def test_initialization(self):
+        """Test that the embedding module is initialized correctly."""
+        self.assertEqual(self.embedding.vocab_size, self.vocab_size)
+        self.assertEqual(self.embedding.embedding_dim, self.embedding_dim)
+        self.assertEqual(self.embedding.max_seq_len, self.max_seq_len)
+    
+    def test_forward(self):
+        """Test forward pass."""
+        embeddings = self.embedding(self.tokens)
+        
+        self.assertEqual(embeddings.shape, (self.batch_size, self.seq_len, self.embedding_dim))
+
+
+class TestOutputHead(unittest.TestCase):
+    """Test cases for the OutputHead class."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        self.embedding_dim = 64
+        self.vocab_size = 1000
+        self.batch_size = 2
+        self.seq_len = 10
+        self.output_head = OutputHead(
+            embedding_dim=self.embedding_dim,
+            vocab_size=self.vocab_size
+        )
+        
+        # Create random embeddings
+        self.embeddings = torch.randn(self.batch_size, self.seq_len, self.embedding_dim)
+    
+    def test_initialization(self):
+        """Test that the output head is initialized correctly."""
+        self.assertEqual(self.output_head.embedding_dim, self.embedding_dim)
+        self.assertEqual(self.output_head.vocab_size, self.vocab_size)
+    
+    def test_forward(self):
+        """Test forward pass."""
+        logits = self.output_head(self.embeddings)
+        
+        self.assertEqual(logits.shape, (self.batch_size, self.seq_len, self.vocab_size))
+
+
+class TestTokenTuringMachine(unittest.TestCase):
+    """Test cases for the TokenTuringMachine class."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        self.vocab_size = 1000
+        self.embedding_dim = 64
+        self.memory_size = 8
+        self.r = 4
+        self.num_layers = 2
+        self.num_heads = 4
+        self.hidden_dim = 256
+        self.batch_size = 2
+        self.seq_len = 10
+        
+        # Create TTM model
+        self.ttm = TokenTuringMachine(
+            vocab_size=self.vocab_size,
+            embedding_dim=self.embedding_dim,
+            memory_size=self.memory_size,
+            r=self.r,
+            num_layers=self.num_layers,
+            num_heads=self.num_heads,
+            hidden_dim=self.hidden_dim
+        )
+        
+        # Create memory-less TTM model
+        self.memory_less_ttm = TokenTuringMachine(
+            vocab_size=self.vocab_size,
+            embedding_dim=self.embedding_dim,
+            memory_size=self.memory_size,
+            r=self.r,
+            num_layers=self.num_layers,
+            num_heads=self.num_heads,
+            hidden_dim=self.hidden_dim,
+            memory_less=True
+        )
+        
+        # Create random token indices
+        self.tokens = torch.randint(0, self.vocab_size, (self.batch_size, self.seq_len))
+    
+    def test_initialization(self):
+        """Test that the TTM model is initialized correctly."""
+        self.assertEqual(self.ttm.vocab_size, self.vocab_size)
+        self.assertEqual(self.ttm.embedding_dim, self.embedding_dim)
+        self.assertEqual(self.ttm.memory_size, self.memory_size)
+        self.assertEqual(self.ttm.r, self.r)
+        self.assertFalse(self.ttm.memory_less)
+        self.assertTrue(self.memory_less_ttm.memory_less)
+    
+    def test_initialize_memory(self):
+        """Test initializing memory."""
+        memory = self.ttm.initialize_memory(self.batch_size)
+        
+        self.assertEqual(memory.shape, (self.batch_size, self.memory_size, self.embedding_dim))
+        
+        # Check that memory is initialized with zeros
+        zeros = torch.zeros_like(memory)
+        self.assertTrue(torch.allclose(memory, zeros, atol=1e-6))
+        
+        # Check that memory-less model returns None
+        memory_less = self.memory_less_ttm.initialize_memory(self.batch_size)
+        self.assertIsNone(memory_less)
+    
+    def test_forward(self):
+        """Test forward pass."""
+        # Test with memory
+        logits, new_memory = self.ttm(self.tokens)
+        
+        self.assertEqual(logits.shape, (self.batch_size, self.seq_len, self.vocab_size))
+        self.assertEqual(new_memory.shape, (self.batch_size, self.memory_size, self.embedding_dim))
+        
+        # Test with memory-less model
+        logits_memory_less, new_memory_memory_less = self.memory_less_ttm(self.tokens)
+        
+        self.assertEqual(logits_memory_less.shape, (self.batch_size, self.seq_len, self.vocab_size))
+        self.assertIsNone(new_memory_memory_less)
+    
+    def test_forward_with_provided_memory(self):
+        """Test forward pass with provided memory."""
+        memory = torch.randn(self.batch_size, self.memory_size, self.embedding_dim)
+        
+        logits, new_memory = self.ttm(self.tokens, memory)
+        
+        self.assertEqual(logits.shape, (self.batch_size, self.seq_len, self.vocab_size))
+        self.assertEqual(new_memory.shape, (self.batch_size, self.memory_size, self.embedding_dim))
+    
+    def test_generate(self):
+        """Test token generation."""
+        # Test with memory
+        generated_tokens = self.ttm.generate(
+            tokens=self.tokens,
+            max_length=15,
+            temperature=1.0
+        )
+        
+        self.assertEqual(generated_tokens.shape, (self.batch_size, 15))
+        
+        # Check that the first seq_len tokens are the same as the input
+        self.assertTrue(torch.allclose(generated_tokens[:, :self.seq_len], self.tokens, atol=1e-6))
+        
+        # Test with memory-less model
+        generated_tokens_memory_less = self.memory_less_ttm.generate(
+            tokens=self.tokens,
+            max_length=15,
+            temperature=1.0
+        )
+        
+        self.assertEqual(generated_tokens_memory_less.shape, (self.batch_size, 15))
+        
+        # Check that the first seq_len tokens are the same as the input
+        self.assertTrue(torch.allclose(generated_tokens_memory_less[:, :self.seq_len], self.tokens, atol=1e-6))
+    
+    def test_generate_with_top_k(self):
+        """Test token generation with top-k sampling."""
+        generated_tokens = self.ttm.generate(
+            tokens=self.tokens,
+            max_length=15,
+            temperature=1.0,
+            top_k=5
+        )
+        
+        self.assertEqual(generated_tokens.shape, (self.batch_size, 15))
+    
+    def test_generate_with_top_p(self):
+        """Test token generation with top-p sampling."""
+        generated_tokens = self.ttm.generate(
+            tokens=self.tokens,
+            max_length=15,
+            temperature=1.0,
+            top_p=0.9
+        )
+        
+        self.assertEqual(generated_tokens.shape, (self.batch_size, 15))
+    
+    def test_generate_with_eos(self):
+        """Test token generation with EOS token."""
+        eos_token = 42
+        
+        # Set one of the generated tokens to be the EOS token
+        with unittest.mock.patch('torch.multinomial', return_value=torch.tensor([[eos_token], [eos_token]])):
+            generated_tokens = self.ttm.generate(
+                tokens=self.tokens,
+                max_length=15,
+                temperature=1.0,
+                eos_token=eos_token
+            )
+        
+        self.assertLessEqual(generated_tokens.shape[1], 15)
+        self.assertTrue((generated_tokens == eos_token).any())
+
+
+if __name__ == '__main__':
+    unittest.main()
