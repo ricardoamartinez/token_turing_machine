@@ -328,7 +328,10 @@ class TokenTuringMachine(nn.Module):
             new_memory = None
 
         # Apply transformer processing unit
-        transformer_output = self.transformer(combined_tokens, attn_mask, key_padding_mask)  # [batch_size, r + seq_len, embedding_dim] or [batch_size, seq_len, embedding_dim]
+        transformer_output, attention_weights = self.transformer(combined_tokens, attn_mask, key_padding_mask, return_attention=True)  # [batch_size, r + seq_len, embedding_dim] or [batch_size, seq_len, embedding_dim]
+
+        # Store attention weights for visualization
+        self.last_attention_weights = attention_weights
 
         # Extract the output tokens (excluding memory tokens if not memory-less)
         if not self.memory_less and memory is not None:
