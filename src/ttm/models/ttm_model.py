@@ -14,6 +14,7 @@ from .token_summarization import token_summarize, MLPSummarizer, QuerySummarizer
 from .memory_operations import MemoryModule
 from .transformer_unit import TransformerProcessingUnit
 from ..utils.masking import create_combined_mask, create_causal_mask, mask_after_eos, EOSCrossEntropyLoss
+from ..utils.losses import TTMLoss, create_loss_function
 
 
 class TokenEmbedding(nn.Module):
@@ -430,35 +431,41 @@ class TokenTuringMachine(nn.Module):
 
     def create_loss_fn(
         self,
+        loss_type: str = 'cross_entropy',
         ignore_index: int = -100,
         reduction: str = 'mean',
         label_smoothing: float = 0.0,
-        include_eos: bool = True
+        include_eos: bool = True,
+        memory_loss_weight: float = 0.0,
+        attention_loss_weight: float = 0.0,
+        focal_alpha: float = 0.25,
+        focal_gamma: float = 2.0
     ) -> nn.Module:
         """Create a loss function for training.
 
         Args:
+            loss_type: Type of loss function ('cross_entropy', 'label_smoothing', 'focal', or 'ttm')
             ignore_index: Target value to ignore in loss calculation
             reduction: Reduction method ('none', 'mean', or 'sum')
             label_smoothing: Label smoothing factor
             include_eos: Whether to include the EOS token in the loss calculation
+            memory_loss_weight: Weight for the memory consistency loss
+            attention_loss_weight: Weight for the attention entropy loss
+            focal_alpha: Weighting factor for the rare class in focal loss
+            focal_gamma: Focusing parameter in focal loss
 
         Returns:
             Loss function module
         """
-        if self.eos_token is not None:
-            # Use EOS-aware cross entropy loss
-            return EOSCrossEntropyLoss(
-                eos_token=self.eos_token,
-                include_eos=include_eos,
-                ignore_index=ignore_index,
-                reduction=reduction,
-                label_smoothing=label_smoothing
-            )
-        else:
-            # Use standard cross entropy loss
-            return nn.CrossEntropyLoss(
-                ignore_index=ignore_index,
-                reduction=reduction,
-                label_smoothing=label_smoothing
-            )
+        return create_loss_function(
+            loss_type=loss_type,
+            eos_token=self.eos_token,
+            ignore_index=ignore_index,
+            reduction=reduction,
+            label_smoothing=label_smoothing,
+            include_eos=include_eos,
+            memory_loss_weight=memory_loss_weight,
+            attention_loss_weight=attention_loss_weight,
+            focal_alpha=focal_alpha,
+            focal_gamma=focal_gamma
+        )
