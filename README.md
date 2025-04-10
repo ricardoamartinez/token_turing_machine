@@ -699,10 +699,9 @@ Update the README list by marking each item as complete only after meeting its s
         (e.g., a 3x3 grid where each panel has fixed dimensions and margins)
       - Terminal Validation: Run the dashboard and visually verify that all panels are visible simultaneously without scrolling; note the layout printed in the terminal log.
       - Git: Commit with `git commit -m "Design single-canvas layout"`
-  - [ ] Implement 3D camera controls (pan, zoom, rotate)
+  - [x] Implement 3D camera controls (pan, zoom, rotate)
       - Condition: The dashboard supports interactive navigation of the 3D scene using mouse and keyboard inputs
-      - Answer: What library or custom code is used for camera controls? _____________
-        (e.g., a custom arcball camera controller or integration with pyglet's built-in camera controls)
+      - Answer: What library or custom code is used for camera controls? The visualization engine implements custom camera controls using Pyglet's mouse and keyboard event handlers. Mouse dragging rotates the camera around the target point, mouse scrolling zooms in and out, and keyboard inputs (WASD, QE) move the camera in different directions. The camera parameters are stored in the engine and used to calculate the view matrix for rendering.
       - Terminal Validation: Run the dashboard, interact with the camera (pan, zoom, rotate), and verify via printed camera parameter updates in the terminal or on-screen overlays.
       - Git: Commit with `git commit -m "Implement 3D camera controls"`
   - [ ] Implement voxel hovering/selection for tooltips
