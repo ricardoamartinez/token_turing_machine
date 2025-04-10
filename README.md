@@ -704,10 +704,9 @@ Update the README list by marking each item as complete only after meeting its s
       - Answer: What library or custom code is used for camera controls? The visualization engine implements custom camera controls using Pyglet's mouse and keyboard event handlers. Mouse dragging rotates the camera around the target point, mouse scrolling zooms in and out, and keyboard inputs (WASD, QE) move the camera in different directions. The camera parameters are stored in the engine and used to calculate the view matrix for rendering.
       - Terminal Validation: Run the dashboard, interact with the camera (pan, zoom, rotate), and verify via printed camera parameter updates in the terminal or on-screen overlays.
       - Git: Commit with `git commit -m "Implement 3D camera controls"`
-  - [ ] Implement voxel hovering/selection for tooltips
+  - [x] Implement voxel hovering/selection for tooltips
       - Condition: Hovering over a voxel displays its value/metadata in a tooltip; clicking a voxel highlights it
-      - Answer: How is picking implemented (e.g., color picking, ray casting)? _____________
-        (e.g., using ray casting from the camera through mouse coordinates into the 3D space with intersection tests)
+      - Answer: How is picking implemented (e.g., color picking, ray casting)? Picking is implemented using ray casting. The mouse coordinates are converted to normalized device coordinates, then a ray is created in clip space and transformed to world space using the inverse of the projection and view matrices. The ray is then tested for intersection with each voxel's bounding box using a slab-based ray-box intersection algorithm. The closest intersected voxel is selected.
       - Terminal Validation: Run the dashboard, hover over voxels, and verify that tooltips display correct metadata; check the terminal log for debug output confirming selections.
       - Git: Commit with `git commit -m "Implement voxel hovering and selection"`
   - [ ] Implement interactive state editing interface
