@@ -608,95 +608,117 @@ Update the README list by marking each item as complete only after meeting its s
       - Git: After review, merge with `git checkout main && git merge feature/performance-optimization`
       - Git: Push to main with `git push origin main`
 
-### Phase 11.5: Scalable 3D Voxel Visualization with Automatic Computational Graph Mapping
+### Phase 11.5: Interactive 3D Voxel Visualization Engine (Hook-Based)
 
-- [ ] **Implement Pyglet/OpenGL-based visualization engine with automatic computational graph mapping**
-  - [ ] Set up Pyglet and OpenGL environment with true black background
-      - Condition: `visualization_engine.py` creates a window with true black background (RGB 0,0,0) and initializes OpenGL context
-      - Answer: What OpenGL version is being used for maximum compatibility and performance? _____________
-      - Git: Create branch with `git checkout -b feature/3d-visualization`
-  - [ ] Implement computational graph extraction and introspection
-      - Condition: `graph_extractor.py` automatically extracts the TTM's computational graph using PyTorch hooks or FX
-      - Answer: How many distinct node types were identified in the TTM computational graph? _____________
-      - Git: Commit with `git commit -m "Add automatic computational graph extraction"`
-  - [ ] Create unified tensor-to-voxel mapping interface
-      - Condition: `VisMapper` base class defines a standard interface for mapping any tensor to voxel representation
-      - Answer: What methods must a custom mapper implement to be compatible with the system? _____________
-      - Git: Commit with `git commit -m "Implement extensible VisMapper interface"`
-  - [ ] Develop GPU-optimized vertex and fragment shaders
-      - Condition: Custom GLSL shaders support instanced rendering of 1M+ voxels at 60+ FPS
-      - Answer: What optimization techniques were implemented in the shaders? _____________
-      - Git: Commit with `git commit -m "Add high-performance voxel rendering shaders"`
-  - [ ] Implement dynamic buffer management for real-time updates
-      - Condition: System can update 100,000+ voxels in real-time without frame drops
-      - Answer: What buffer management strategy provides the best performance? _____________
-      - Git: Commit with `git commit -m "Implement efficient buffer management for real-time updates"`
+- [ ] **Implement State Capture via Hooks**
+  - [ ] Create `TTMStateTracker` class
+      - Condition: `TTMStateTracker` class exists in `src/ttm/visualization/state_tracker.py`
+      - Answer: What data structure is used to store captured states? _____________
+      - Git: Create branch with `git checkout -b feature/3d-visualization` (if not already created)
+  - [ ] Implement hook registration mechanism
+      - Condition: `TTMStateTracker` can register forward hooks on specified TTM submodules (embeddings, memory, attention, etc.)
+      - Answer: How are target modules specified for hook registration? _____________
+      - Git: Commit with `git commit -m "Implement state tracker hook registration"`
+  - [ ] Implement state recording logic within hooks
+      - Condition: Hooks capture input/output tensors and store them in `TTMStateTracker` with metadata (module name, step, token index)
+      - Answer: What metadata is stored alongside each captured tensor? _____________
+      - Git: Commit with `git commit -m "Implement state recording in hooks"`
+  - [ ] Standardize captured state format
+      - Condition: All captured states are stored consistently (e.g., dict with 'name', 'type', 'shape', 'data', 'metadata' keys)
+      - Answer: Provide an example of the standardized state format: _____________
+      - Git: Commit with `git commit -m "Standardize captured state format"`
+  - [ ] Integrate `TTMStateTracker` with the training loop
+      - Condition: `TTMTrainer` initializes and uses `TTMStateTracker` to record states during training/evaluation
+      - Answer: How is the tracker managed across epochs/batches? _____________
+      - Git: Commit with `git commit -m "Integrate state tracker into training loop"`
 
-- [ ] **Create automatic visualization mappers for different data structures**
-  - [ ] Implement generic tensor-to-voxel mapper
-      - Condition: System automatically converts any N-dimensional tensor to an appropriate 3D voxel representation
-      - Answer: How are tensors with more than 3 dimensions mapped to 3D space? _____________
-      - Git: Commit with `git commit -m "Add generic N-dimensional tensor mapper"`
-  - [ ] Develop specialized mappers for common TTM components
-      - Condition: System includes optimized mappers for memory matrices, attention weights, and embeddings
-      - Answer: What specialized visual encodings are used for different tensor types? _____________
-      - Git: Commit with `git commit -m "Add specialized mappers for TTM components"`
-  - [ ] Create computational graph visualization mapper
-      - Condition: System renders the model's computational graph as an interactive 3D network
-      - Answer: How are different operation types visually distinguished in the graph? _____________
-      - Git: Commit with `git commit -m "Implement computational graph visualization"`
-  - [ ] Implement mapper registry with automatic type detection
-      - Condition: System automatically selects the appropriate mapper for any tensor or state
-      - Answer: What criteria are used to match tensors with the most appropriate mapper? _____________
-      - Git: Commit with `git commit -m "Add automatic mapper selection system"`
+- [ ] **Develop Modular VisMapper Interface**
+  - [ ] Define abstract `VisMapper` base class
+      - Condition: `VisMapper` class exists in `src/ttm/visualization/vis_mapper.py` with abstract methods (e.g., `map_to_voxels`, `get_voxel_layout`)
+      - Answer: What abstract methods must subclasses implement? _____________
+      - Git: Commit with `git commit -m "Define abstract VisMapper base class"`
+  - [ ] Implement `MatrixMapper` for 2D tensors
+      - Condition: `MatrixMapper` converts 2D tensors (e.g., memory, attention) into 3D voxel grid data (positions, colors)
+      - Answer: How are matrix values mapped to voxel colors/intensities? _____________
+      - Git: Commit with `git commit -m "Implement MatrixMapper for 2D tensors"`
+  - [ ] Implement `VectorMapper` for 1D tensors
+      - Condition: `VectorMapper` converts 1D tensors (e.g., embeddings) into 3D voxel representation (e.g., bar chart)
+      - Answer: How are vector elements positioned in 3D space? _____________
+      - Git: Commit with `git commit -m "Implement VectorMapper for 1D tensors"`
+  - [ ] Implement `GraphMapper` for computational graph (optional, based on hook data)
+      - Condition: `GraphMapper` visualizes connections between captured states/modules in 3D space
+      - Answer: How are graph nodes and edges represented visually? _____________
+      - Git: Commit with `git commit -m "Implement basic GraphMapper"`
+  - [ ] Create `MapperRegistry` for automatic mapper selection
+      - Condition: `MapperRegistry` selects the appropriate `VisMapper` based on tensor shape/type or state metadata
+      - Answer: What logic determines the best mapper for a given state? _____________
+      - Git: Commit with `git commit -m "Implement MapperRegistry for automatic selection"`
 
-- [ ] **Develop interactive features and unified interface**
-  - [ ] Implement 3D navigation and camera controls
-      - Condition: Users can fly around, zoom, rotate, and inspect any part of the visualization
-      - Answer: What navigation controls and shortcuts were implemented? _____________
-      - Git: Commit with `git commit -m "Add interactive 3D navigation controls"`
-  - [ ] Create voxel selection, inspection, and editing interface
-      - Condition: Users can hover over voxels for tooltips, click to edit values, and see changes propagate
-      - Answer: How does the system visualize the propagation of edited values through the computational graph? _____________
-      - Git: Commit with `git commit -m "Implement interactive voxel editing and propagation"`
-  - [ ] Develop state timeline and playback controls
-      - Condition: System captures and allows playback of model states across time/tokens
-      - Answer: How many historical states can be stored and replayed? _____________
-      - Git: Commit with `git commit -m "Add state timeline and playback system"`
-  - [ ] Implement single-canvas modular layout with dynamic resizing
-      - Condition: All visualizations (memory, attention, graph, etc.) are visible simultaneously on one screen
-      - Answer: How does the layout adapt to different screen sizes and aspect ratios? _____________
-      - Git: Commit with `git commit -m "Create unified single-canvas layout"`
-  - [ ] Add real-time performance monitoring and optimization
-      - Condition: System maintains 60+ FPS even with complex visualizations by dynamically adjusting detail levels
-      - Answer: What adaptive rendering techniques are used to maintain high performance? _____________
-      - Git: Commit with `git commit -m "Implement adaptive performance optimization"`
+- [ ] **Implement High-Performance Pyglet/OpenGL Rendering Engine**
+  - [ ] Set up Pyglet window with OpenGL context and true black background
+      - Condition: `visualization_engine.py` creates a window with RGB (0,0,0) background and initializes OpenGL
+      - Answer: What OpenGL version is targeted for compatibility? _____________
+      - Git: Commit with `git commit -m "Setup Pyglet/OpenGL window with black background"`
+  - [ ] Develop vertex/fragment shaders for instanced voxel rendering
+      - Condition: GLSL shaders exist (`voxel.vert`, `voxel.frag`) capable of rendering millions of cubes efficiently
+      - Answer: How do shaders handle voxel position, color, and scaling based on data? _____________
+      - Git: Commit with `git commit -m "Implement shaders for instanced voxel rendering"`
+  - [ ] Implement dynamic VBO management for efficient updates
+      - Condition: Rendering engine uses dynamic VBOs (e.g., `glBufferSubData`) to update only changed voxel data
+      - Answer: What is the strategy for minimizing GPU data transfer? _____________
+      - Git: Commit with `git commit -m "Implement dynamic VBO management"`
+  - [ ] Integrate `VisMapper` output with rendering engine
+      - Condition: Engine takes voxel data from mappers and renders it using instanced drawing calls
+      - Answer: How is data passed from mappers to shaders? _____________
+      - Git: Commit with `git commit -m "Integrate VisMapper output with renderer"`
 
-- [ ] **Comprehensive testing and validation of visualization system**
-  - [ ] Verify automatic computational graph mapping
-      - Condition: System correctly visualizes the entire TTM computational graph without manual mapping configuration
-      - Answer: How many distinct operations in the TTM model were automatically mapped and visualized? _____________
-      - Git: Commit with `git commit -m "Validate automatic computational graph mapping"`
-  - [ ] Test scalability with large tensors
-      - Condition: System maintains 60+ FPS when visualizing tensors with millions of elements
-      - Answer: What is the largest tensor size that can be visualized while maintaining target performance? _____________
-      - Git: Commit with `git commit -m "Test visualization scalability with large tensors"`
-  - [ ] Validate real-time state editing and propagation
-      - Condition: Editing a memory cell or attention weight correctly propagates through the computational graph
-      - Answer: How quickly does the system update the visualization after a state edit? _____________
-      - Git: Commit with `git commit -m "Validate real-time state editing and propagation"`
-  - [ ] Test integration with training loop
-      - Condition: Visualization system captures and displays model states during actual training
-      - Answer: How does the visualization system impact training performance? _____________
-      - Git: Commit with `git commit -m "Test integration with training loop"`
-  - [ ] Verify all requested features are implemented
-      - Condition: System includes true black background, single-canvas layout, automatic mapping, interactive editing, and high performance
-      - Answer: Which feature required the most optimization to meet requirements? _____________
-      - Git: Commit with `git commit -m "Verify all visualization requirements are met"`
-  - [ ] Create comprehensive demonstration
-      - Condition: `demo.py` showcases all visualization features with the TTM model
-      - Answer: What specific TTM operations provide the most insightful visualizations? _____________
-      - Git: Commit with `git commit -m "Create comprehensive visualization demonstration"`
+- [ ] **Develop Unified Single-Canvas Interactive Dashboard**
+  - [ ] Design single-canvas layout in `VisualizationEngine`
+      - Condition: Engine manages viewports or layout for displaying multiple visualizations (memory, attention, graph, controls) simultaneously
+      - Answer: How is the layout structured (e.g., grid, docking)? _____________
+      - Git: Commit with `git commit -m "Design single-canvas layout"`
+  - [ ] Implement 3D camera controls (pan, zoom, rotate)
+      - Condition: User can navigate the 3D visualization space using mouse/keyboard
+      - Answer: What library or custom code is used for camera controls? _____________
+      - Git: Commit with `git commit -m "Implement 3D camera controls"`
+  - [ ] Implement voxel hovering/selection for tooltips
+      - Condition: Hovering over a voxel displays its corresponding value/metadata; clicking selects it
+      - Answer: How is picking implemented (e.g., color picking, ray casting)? _____________
+      - Git: Commit with `git commit -m "Implement voxel hovering and selection"`
+  - [ ] Implement interactive state editing interface
+      - Condition: Clicking a voxel allows modifying its value, which updates the `TTMStateTracker`
+      - Answer: How are state changes propagated back to the simulation/model? _____________
+      - Git: Commit with `git commit -m "Implement interactive state editing"`
+  - [ ] Implement state timeline/playback controls
+      - Condition: UI includes controls (slider, buttons) to navigate through captured states from `TTMStateTracker`
+      - Answer: How is the visualization updated during playback? _____________
+      - Git: Commit with `git commit -m "Implement state timeline and playback controls"`
+  - [ ] Implement real-time performance monitoring and adaptive rendering
+      - Condition: Dashboard displays FPS; engine adjusts rendering detail (e.g., voxel count) to maintain target FPS
+      - Answer: What is the target FPS and how is detail adjusted? _____________
+      - Git: Commit with `git commit -m "Implement performance monitoring and adaptive rendering"`
+
+- [ ] **Integration and Testing**
+  - [ ] Integrate `TTMStateTracker` data feed into `VisualizationEngine`
+      - Condition: Engine receives state updates from the tracker and triggers appropriate `VisMapper` updates
+      - Answer: How is data transferred between tracker and engine (e.g., queue, callback)? _____________
+      - Git: Commit with `git commit -m "Integrate state tracker data feed"`
+  - [ ] Test visualization with live training data
+      - Condition: Dashboard displays updating visualizations during a TTM training run
+      - Answer: What is the observed impact on training speed? _____________
+      - Git: Commit with `git commit -m "Test visualization with live training data"`
+  - [ ] Test interactive editing and state replay
+      - Condition: Modifying a state via the dashboard and resuming/replaying shows expected changes
+      - Answer: Provide an example of a tested modification and its effect: _____________
+      - Git: Commit with `git commit -m "Test interactive editing and replay"`
+  - [ ] Test scalability with large models/long sequences
+      - Condition: Engine maintains target FPS while visualizing states from complex scenarios
+      - Answer: What are the performance bottlenecks observed? _____________
+      - Git: Commit with `git commit -m "Test visualization scalability"`
+  - [ ] Create comprehensive demonstration script
+      - Condition: `run_visualization_demo.py` showcases all features using the trained TTM model
+      - Answer: What key insights does the demo highlight? _____________
+      - Git: Commit with `git commit -m "Create visualization demo script"`
       - Git: Push branch with `git push origin feature/3d-visualization`
       - Git: Create pull request for review
       - Git: After review, merge with `git checkout main && git merge feature/3d-visualization`
