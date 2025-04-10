@@ -247,6 +247,68 @@ class VisualizationManager:
 
         return None
 
+    def update_state_value(self, state_name: str, value: float) -> None:
+        """Update a state value.
+
+        Args:
+            state_name: State name
+            value: New value
+        """
+        # Check if state exists
+        if state_name not in self.states:
+            print(f"State not found: {state_name}")
+            return
+
+        # Store original value if not already stored
+        if 'original_value' not in self.states[state_name]:
+            self.states[state_name]['original_value'] = self.states[state_name]['data'].copy()
+
+        # Update state value
+        # For simplicity, we'll just scale all values in the tensor by the new value
+        # In a real application, you might want to update specific elements or use a more complex transformation
+        original_data = self.states[state_name]['original_value']
+        self.states[state_name]['data'] = original_data * value
+
+        # Print debug information
+        print(f"Updated state {state_name} value to {value}")
+
+    def apply_state_changes(self, state_name: str) -> None:
+        """Apply state changes.
+
+        Args:
+            state_name: State name
+        """
+        # Check if state exists
+        if state_name not in self.states:
+            print(f"State not found: {state_name}")
+            return
+
+        # Remove original value to indicate changes are applied
+        if 'original_value' in self.states[state_name]:
+            self.states[state_name].pop('original_value')
+
+        # Print debug information
+        print(f"Applied changes to state {state_name}")
+
+    def revert_state_changes(self, state_name: str) -> None:
+        """Revert state changes.
+
+        Args:
+            state_name: State name
+        """
+        # Check if state exists
+        if state_name not in self.states:
+            print(f"State not found: {state_name}")
+            return
+
+        # Revert to original value if available
+        if 'original_value' in self.states[state_name]:
+            self.states[state_name]['data'] = self.states[state_name]['original_value']
+            self.states[state_name].pop('original_value')
+
+        # Print debug information
+        print(f"Reverted changes to state {state_name}")
+
     def update(self) -> None:
         """Update the visualization."""
         # Update voxel renderer

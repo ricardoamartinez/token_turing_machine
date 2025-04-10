@@ -2,6 +2,8 @@ import pyglet
 from pyglet.gl import *
 import numpy as np
 import math
+import imgui
+from imgui.integrations.pyglet import PygletRenderer
 from typing import Dict, List, Tuple, Optional, Any
 
 from .voxel_renderer import VoxelRenderer
@@ -40,6 +42,14 @@ class VisualizationEngine(pyglet.window.Window):
         self.tooltip_text = ""
         self.tooltip_position = (0, 0)
 
+        # Initialize ImGui
+        self.init_imgui()
+
+        # Initialize state editing parameters
+        self.editing_voxel = None
+        self.editing_value = 0.0
+        self.editing_window_open = False
+
         # Initialize matrices
         self.model_matrix = np.identity(4, dtype=np.float32)
         self.view_matrix = self._get_view_matrix()
@@ -73,6 +83,32 @@ class VisualizationEngine(pyglet.window.Window):
         # Enable backface culling
         glEnable(GL_CULL_FACE)
         glCullFace(GL_BACK)
+
+    def init_imgui(self):
+        """Initialize Dear ImGui."""
+        # Create ImGui context
+        imgui.create_context()
+
+        # Configure ImGui style
+        style = imgui.get_style()
+        style.window_rounding = 0.0
+        style.colors[imgui.COLOR_WINDOW_BACKGROUND] = (0.0, 0.0, 0.0, 0.8)
+        style.colors[imgui.COLOR_TITLE_BACKGROUND_ACTIVE] = (0.1, 0.1, 0.1, 1.0)
+        style.colors[imgui.COLOR_TITLE_BACKGROUND] = (0.1, 0.1, 0.1, 0.8)
+        style.colors[imgui.COLOR_FRAME_BACKGROUND] = (0.05, 0.05, 0.05, 0.8)
+        style.colors[imgui.COLOR_FRAME_BACKGROUND_HOVERED] = (0.15, 0.15, 0.15, 0.8)
+        style.colors[imgui.COLOR_FRAME_BACKGROUND_ACTIVE] = (0.25, 0.25, 0.25, 0.8)
+        style.colors[imgui.COLOR_BUTTON] = (0.2, 0.2, 0.2, 0.8)
+        style.colors[imgui.COLOR_BUTTON_HOVERED] = (0.3, 0.3, 0.3, 0.8)
+        style.colors[imgui.COLOR_BUTTON_ACTIVE] = (0.4, 0.4, 0.4, 0.8)
+        style.colors[imgui.COLOR_TEXT] = (1.0, 1.0, 1.0, 1.0)
+
+        # Create Pyglet renderer
+        self.imgui_renderer = PygletRenderer(self)
+
+        # Set up ImGui IO
+        io = imgui.get_io()
+        io.display_size = self.width, self.height
 
     def _init_demo_voxels(self):
         """Initialize demo voxels for testing."""
@@ -164,8 +200,8 @@ class VisualizationEngine(pyglet.window.Window):
             self.projection_matrix
         )
 
-        # Draw tooltip if visible
-        if self.tooltip_visible and self.tooltip_text:
+        # Draw tooltip if visible and not editing
+        if self.tooltip_visible and self.tooltip_text and not self.editing_window_open:
             # Create a label for the tooltip
             x, y = self.tooltip_position
             label = pyglet.text.Label(
@@ -197,6 +233,89 @@ class VisualizationEngine(pyglet.window.Window):
             # Draw the label
             label.draw()
 
+        # Render ImGui UI
+        imgui.new_frame()
+        self._render_imgui()
+        imgui.render()
+        self.imgui_renderer.render(imgui.get_draw_data())
+
+    def _render_imgui(self):
+        """Render ImGui UI."""
+        # Render state editing window if open
+        if self.editing_window_open and self.editing_voxel is not None:
+            self._render_state_editing_window()
+
+    def _render_state_editing_window(self):
+        """Render the state editing window."""
+        # Get voxel data
+        voxel_data = self.voxel_renderer.get_voxel_data(self.editing_voxel)
+        if voxel_data is None:
+            self.editing_window_open = False
+            return
+
+        # Get state name
+        state_name = self.visualization_manager.get_state_name_for_voxel(self.editing_voxel)
+        if state_name is None:
+            state_name = "Unknown"
+
+        # Set window position and size
+        window_width = 300
+        window_height = 200
+        window_x = self.width - window_width - 10
+        window_y = self.height - window_height - 10
+        imgui.set_next_window_position(window_x, window_y)
+        imgui.set_next_window_size(window_width, window_height)
+
+        # Begin window
+        expanded, open = imgui.begin(f"Edit State: {state_name}", True)
+        if not open:
+            self.editing_window_open = False
+            imgui.end()
+            return
+
+        # Display voxel information
+        imgui.text(f"Voxel Index: {self.editing_voxel}")
+        imgui.text(f"Position: {voxel_data['position']}")
+        imgui.text(f"Scale: {voxel_data['scale']}")
+        imgui.text(f"Color: {voxel_data['color']}")
+
+        # Edit value
+        changed, value = imgui.slider_float("Value", voxel_data['value'], 0.0, 1.0)
+        if changed:
+            # Update voxel value
+            self.editing_value = value
+
+            # Update voxel in renderer
+            self.voxel_renderer.set_voxel(
+                self.editing_voxel,
+                voxel_data['position'],
+                voxel_data['scale'],
+                voxel_data['color'],
+                value
+            )
+
+            # Update state in visualization manager
+            self.visualization_manager.update_state_value(state_name, value)
+
+            # Print debug information
+            print(f"Updated voxel {self.editing_voxel} value to {value}")
+
+        # Add apply and cancel buttons
+        if imgui.button("Apply", 100, 30):
+            # Apply changes to the state
+            self.visualization_manager.apply_state_changes(state_name)
+            self.editing_window_open = False
+
+        imgui.same_line()
+
+        if imgui.button("Cancel", 100, 30):
+            # Revert changes
+            self.visualization_manager.revert_state_changes(state_name)
+            self.editing_window_open = False
+
+        # End window
+        imgui.end()
+
     def on_resize(self, width, height):
         """Called when the window is resized."""
         super().on_resize(width, height)
@@ -207,10 +326,23 @@ class VisualizationEngine(pyglet.window.Window):
         # Update projection matrix
         self.projection_matrix = self._get_projection_matrix()
 
+        # Update ImGui display size
+        io = imgui.get_io()
+        io.display_size = width, height
+
     def on_mouse_motion(self, x, y, dx, dy):
         """Called when the mouse is moved."""
+        # Skip if ImGui is capturing mouse
+        io = imgui.get_io()
+        if io.want_capture_mouse:
+            return
+
         # Update tooltip position
         self.tooltip_position = (x, y)
+
+        # Skip voxel picking if editing window is open
+        if self.editing_window_open:
+            return
 
         # Perform ray casting for voxel picking
         voxel_index = self._pick_voxel(x, y)
@@ -233,6 +365,7 @@ class VisualizationEngine(pyglet.window.Window):
                 self.tooltip_text += f"Position: {voxel_data['position']}\n"
                 self.tooltip_text += f"Color: {voxel_data['color']}\n"
                 self.tooltip_text += f"Value: {voxel_data['value']:.4f}"
+                self.tooltip_text += f"\n\nClick to edit"
 
                 # Show tooltip
                 self.tooltip_visible = True
@@ -242,6 +375,11 @@ class VisualizationEngine(pyglet.window.Window):
 
     def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
         """Called when the mouse is dragged."""
+        # Skip if ImGui is capturing mouse
+        io = imgui.get_io()
+        if io.want_capture_mouse:
+            return
+
         # Update tooltip position
         self.tooltip_position = (x, y)
 
@@ -284,6 +422,11 @@ class VisualizationEngine(pyglet.window.Window):
 
     def on_mouse_press(self, x, y, button, modifiers):
         """Called when a mouse button is pressed."""
+        # Skip if ImGui is capturing mouse
+        io = imgui.get_io()
+        if io.want_capture_mouse:
+            return
+
         if button == pyglet.window.mouse.LEFT:
             # Perform ray casting for voxel picking
             voxel_index = self._pick_voxel(x, y)
@@ -307,8 +450,21 @@ class VisualizationEngine(pyglet.window.Window):
                         voxel_data['value']
                     )
 
+                    # Open editing window
+                    self.editing_voxel = voxel_index
+                    self.editing_value = voxel_data['value']
+                    self.editing_window_open = True
+
+                    # Hide tooltip while editing
+                    self.tooltip_visible = False
+
     def on_mouse_scroll(self, x, y, scroll_x, scroll_y):
         """Called when the mouse wheel is scrolled."""
+        # Skip if ImGui is capturing mouse
+        io = imgui.get_io()
+        if io.want_capture_mouse:
+            return
+
         # Zoom camera
         zoom_factor = 1.1 ** scroll_y
 
@@ -500,6 +656,9 @@ class VisualizationEngine(pyglet.window.Window):
 
         # Clean up voxel renderer
         self.voxel_renderer.cleanup()
+
+        # Clean up ImGui
+        self.imgui_renderer.shutdown()
 
 if __name__ == '__main__':
     # Example usage: Create and run the engine

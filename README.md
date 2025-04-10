@@ -708,10 +708,9 @@ Update the README list by marking each item as complete only after meeting its s
       - Answer: How is picking implemented (e.g., color picking, ray casting)? Picking is implemented using ray casting. The mouse coordinates are converted to normalized device coordinates, then a ray is created in clip space and transformed to world space using the inverse of the projection and view matrices. The ray is then tested for intersection with each voxel's bounding box using a slab-based ray-box intersection algorithm. The closest intersected voxel is selected.
       - Terminal Validation: Run the dashboard, hover over voxels, and verify that tooltips display correct metadata; check the terminal log for debug output confirming selections.
       - Git: Commit with `git commit -m "Implement voxel hovering and selection"`
-  - [ ] Implement interactive state editing interface
+  - [x] Implement interactive state editing interface
       - Condition: Clicking a voxel opens an editing interface that allows modification of its value; changes propagate to the TTMStateTracker
-      - Answer: How are state changes propagated back to the simulation/model? _____________
-        (e.g., through a callback that updates the in-memory state and triggers a refresh of subsequent computations)
+      - Answer: How are state changes propagated back to the simulation/model? State changes are propagated through the VisualizationManager, which maintains a mapping between voxels and their corresponding states. When a voxel's value is changed, the VisualizationManager updates the state data in memory. The changes are immediately reflected in the visualization. When the user clicks 'Apply', the changes are made permanent by removing the original value reference. If the user clicks 'Cancel', the changes are reverted by restoring the original value.
       - Terminal Validation: Run the dashboard, click a voxel to edit its value, and verify via terminal logs or a displayed message that the state is updated and the change affects subsequent steps.
       - Git: Commit with `git commit -m "Implement interactive state editing"`
   - [ ] Implement state timeline/playback controls
