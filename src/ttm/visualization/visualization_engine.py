@@ -2,6 +2,7 @@ import pyglet
 from pyglet.gl import *
 import numpy as np
 import math
+import time
 import imgui
 from imgui.integrations.pyglet import PygletRenderer
 from typing import Dict, List, Tuple, Optional, Any
@@ -21,11 +22,17 @@ class VisualizationEngine(pyglet.window.Window):
         print(f"OpenGL Version: {self.context.get_info().get_version()}")
 
         # Get GLSL version
-        glsl_version = glGetString(GL_SHADING_LANGUAGE_VERSION)
-        if glsl_version:
-            print(f"GLSL Version: {glsl_version.decode('utf-8')}")
-        else:
-            print("GLSL Version: Unknown")
+        try:
+            glsl_version = glGetString(GL_SHADING_LANGUAGE_VERSION)
+            if glsl_version:
+                if hasattr(glsl_version, 'decode'):
+                    print(f"GLSL Version: {glsl_version.decode('utf-8')}")
+                else:
+                    print(f"GLSL Version: {glsl_version}")
+            else:
+                print("GLSL Version: Unknown")
+        except Exception as e:
+            print(f"Error getting GLSL version: {e}")
 
         # Initialize camera parameters
         self.camera_position = np.array([0.0, 0.0, 5.0], dtype=np.float32)
@@ -49,6 +56,18 @@ class VisualizationEngine(pyglet.window.Window):
         self.editing_voxel = None
         self.editing_value = 0.0
         self.editing_window_open = False
+
+        # Initialize timeline parameters
+        self.timeline_window_open = True
+        self.current_epoch = 0
+        self.current_batch = 0
+        self.current_token = 0
+        self.max_epoch = 0
+        self.max_batch = 0
+        self.max_token = 0
+        self.playing = False
+        self.playback_speed = 1.0
+        self.last_playback_time = 0.0
 
         # Initialize matrices
         self.model_matrix = np.identity(4, dtype=np.float32)
@@ -244,6 +263,112 @@ class VisualizationEngine(pyglet.window.Window):
         # Render state editing window if open
         if self.editing_window_open and self.editing_voxel is not None:
             self._render_state_editing_window()
+
+        # Render timeline window if open
+        if self.timeline_window_open:
+            self._render_timeline_window()
+
+    def _render_timeline_window(self):
+        """Render the timeline window."""
+        # Set window position and size
+        window_width = self.width - 20
+        window_height = 100
+        window_x = 10
+        window_y = 10
+        imgui.set_next_window_position(window_x, window_y)
+        imgui.set_next_window_size(window_width, window_height)
+
+        # Begin window
+        expanded, open = imgui.begin("Timeline", True, imgui.WINDOW_NO_RESIZE | imgui.WINDOW_NO_MOVE)
+        if not open:
+            self.timeline_window_open = False
+            imgui.end()
+            return
+
+        # Get available epochs, batches, and tokens from visualization manager
+        epochs = self.visualization_manager.get_available_epochs()
+        batches = self.visualization_manager.get_available_batches(self.current_epoch)
+        tokens = self.visualization_manager.get_available_tokens(self.current_epoch, self.current_batch)
+
+        # Update max values
+        if epochs:
+            self.max_epoch = max(epochs)
+        if batches:
+            self.max_batch = max(batches)
+        if tokens:
+            self.max_token = max(tokens)
+
+        # Display current state
+        imgui.text(f"Epoch: {self.current_epoch}, Batch: {self.current_batch}, Token: {self.current_token}")
+
+        # Epoch slider
+        if epochs:
+            changed, value = imgui.slider_int("Epoch", self.current_epoch, min(epochs), max(epochs))
+            if changed:
+                self.current_epoch = value
+                # Reset batch and token when epoch changes
+                batches = self.visualization_manager.get_available_batches(self.current_epoch)
+                if batches:
+                    self.current_batch = min(batches)
+                    tokens = self.visualization_manager.get_available_tokens(self.current_epoch, self.current_batch)
+                    if tokens:
+                        self.current_token = min(tokens)
+                # Load state for new epoch/batch/token
+                self.visualization_manager.load_state(self.current_epoch, self.current_batch, self.current_token)
+
+        # Batch slider
+        if batches:
+            changed, value = imgui.slider_int("Batch", self.current_batch, min(batches), max(batches))
+            if changed:
+                self.current_batch = value
+                # Reset token when batch changes
+                tokens = self.visualization_manager.get_available_tokens(self.current_epoch, self.current_batch)
+                if tokens:
+                    self.current_token = min(tokens)
+                # Load state for new batch/token
+                self.visualization_manager.load_state(self.current_epoch, self.current_batch, self.current_token)
+
+        # Token slider
+        if tokens:
+            changed, value = imgui.slider_int("Token", self.current_token, min(tokens), max(tokens))
+            if changed:
+                self.current_token = value
+                # Load state for new token
+                self.visualization_manager.load_state(self.current_epoch, self.current_batch, self.current_token)
+
+        # Playback controls
+        imgui.separator()
+
+        # Play/pause button
+        if self.playing:
+            if imgui.button("Pause", 80, 30):
+                self.playing = False
+        else:
+            if imgui.button("Play", 80, 30):
+                self.playing = True
+                self.last_playback_time = time.time()
+
+        imgui.same_line()
+
+        # Step backward button
+        if imgui.button("<<", 40, 30):
+            self._step_backward()
+
+        imgui.same_line()
+
+        # Step forward button
+        if imgui.button(">>", 40, 30):
+            self._step_forward()
+
+        imgui.same_line()
+
+        # Playback speed slider
+        changed, value = imgui.slider_float("Speed", self.playback_speed, 0.1, 5.0)
+        if changed:
+            self.playback_speed = value
+
+        # End window
+        imgui.end()
 
     def _render_state_editing_window(self):
         """Render the state editing window."""
@@ -478,6 +603,74 @@ class VisualizationEngine(pyglet.window.Window):
         # Update view matrix
         self.view_matrix = self._get_view_matrix()
 
+    def _step_forward(self) -> None:
+        """Step forward in the timeline."""
+        # Get available epochs, batches, and tokens
+        epochs = self.visualization_manager.get_available_epochs()
+        batches = self.visualization_manager.get_available_batches(self.current_epoch)
+        tokens = self.visualization_manager.get_available_tokens(self.current_epoch, self.current_batch)
+
+        if not epochs or not batches or not tokens:
+            return
+
+        # Try to step forward in tokens
+        if self.current_token < max(tokens):
+            self.current_token += 1
+        # If at the end of tokens, try to step forward in batches
+        elif self.current_batch < max(batches):
+            self.current_batch += 1
+            # Reset token to the beginning of the new batch
+            tokens = self.visualization_manager.get_available_tokens(self.current_epoch, self.current_batch)
+            if tokens:
+                self.current_token = min(tokens)
+        # If at the end of batches, try to step forward in epochs
+        elif self.current_epoch < max(epochs):
+            self.current_epoch += 1
+            # Reset batch and token to the beginning of the new epoch
+            batches = self.visualization_manager.get_available_batches(self.current_epoch)
+            if batches:
+                self.current_batch = min(batches)
+                tokens = self.visualization_manager.get_available_tokens(self.current_epoch, self.current_batch)
+                if tokens:
+                    self.current_token = min(tokens)
+
+        # Load state for new epoch/batch/token
+        self.visualization_manager.load_state(self.current_epoch, self.current_batch, self.current_token)
+
+    def _step_backward(self) -> None:
+        """Step backward in the timeline."""
+        # Get available epochs, batches, and tokens
+        epochs = self.visualization_manager.get_available_epochs()
+        batches = self.visualization_manager.get_available_batches(self.current_epoch)
+        tokens = self.visualization_manager.get_available_tokens(self.current_epoch, self.current_batch)
+
+        if not epochs or not batches or not tokens:
+            return
+
+        # Try to step backward in tokens
+        if self.current_token > min(tokens):
+            self.current_token -= 1
+        # If at the beginning of tokens, try to step backward in batches
+        elif self.current_batch > min(batches):
+            self.current_batch -= 1
+            # Reset token to the end of the previous batch
+            tokens = self.visualization_manager.get_available_tokens(self.current_epoch, self.current_batch)
+            if tokens:
+                self.current_token = max(tokens)
+        # If at the beginning of batches, try to step backward in epochs
+        elif self.current_epoch > min(epochs):
+            self.current_epoch -= 1
+            # Reset batch and token to the end of the previous epoch
+            batches = self.visualization_manager.get_available_batches(self.current_epoch)
+            if batches:
+                self.current_batch = max(batches)
+                tokens = self.visualization_manager.get_available_tokens(self.current_epoch, self.current_batch)
+                if tokens:
+                    self.current_token = max(tokens)
+
+        # Load state for new epoch/batch/token
+        self.visualization_manager.load_state(self.current_epoch, self.current_batch, self.current_token)
+
     def update(self, dt):
         """Update the scene."""
         # Handle keyboard input
@@ -485,6 +678,16 @@ class VisualizationEngine(pyglet.window.Window):
 
         # Update visualization manager
         self.visualization_manager.update()
+
+        # Update playback
+        if self.playing:
+            current_time = time.time()
+            elapsed_time = current_time - self.last_playback_time
+
+            # Step forward based on playback speed
+            if elapsed_time >= 1.0 / self.playback_speed:
+                self._step_forward()
+                self.last_playback_time = current_time
 
         # Rotate model
         angle = 15.0 * dt  # 15 degrees per second

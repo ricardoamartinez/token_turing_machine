@@ -37,6 +37,15 @@ class VisualizationManager:
         self.voxel_mapping: Dict[str, List[int]] = {}  # Maps state names to voxel indices
         self.next_voxel_index = 0
 
+        # Initialize timeline storage
+        self.state_history: Dict[str, Any] = {
+            'epochs': [],
+            'batches': {},
+            'tokens': {},
+            'states': {}
+        }
+        self.current_state_key: Optional[Tuple[int, int, int]] = None
+
     def load_state_history(self, filepath: str) -> None:
         """Load state history from a file.
 
@@ -44,47 +53,88 @@ class VisualizationManager:
             filepath: Path to the state history file
         """
         with open(filepath, 'rb') as f:
-            state_history = pickle.load(f)
+            self.state_history = pickle.load(f)
 
         print(f"Loaded state history from {filepath}")
-        print(f"Number of states: {len(state_history['states'])}")
+        print(f"Number of states: {len(self.state_history['states'])}")
 
-        # Process states
-        for state_key, state_data in state_history['states'].items():
-            # Extract epoch, batch, token
-            epoch, batch, token = state_key
+        # Get the first state key
+        if self.state_history['states']:
+            first_key = next(iter(self.state_history['states'].keys()))
+            self.current_state_key = first_key
 
-            # Process modules
-            if 'modules' in state_data:
-                for module_name, module_data in state_data['modules'].items():
-                    # Process inputs
-                    if 'inputs' in module_data:
-                        inputs = module_data['inputs']
-                        if isinstance(inputs, list):
-                            for i, input_state in enumerate(inputs):
-                                state_name = f"{module_name}_input_{i}_{epoch}_{batch}_{token}"
-                                self.add_state(state_name, input_state)
-                        elif isinstance(inputs, dict) and 'name' in inputs:
-                            state_name = f"{inputs['name']}_{epoch}_{batch}_{token}"
-                            self.add_state(state_name, inputs)
+            # Load the first state
+            self.load_state(*first_key)
 
-                    # Process outputs
-                    if 'outputs' in module_data:
-                        outputs = module_data['outputs']
-                        if isinstance(outputs, list):
-                            for i, output_state in enumerate(outputs):
-                                state_name = f"{module_name}_output_{i}_{epoch}_{batch}_{token}"
-                                self.add_state(state_name, output_state)
-                        elif isinstance(outputs, dict) and 'name' in outputs:
-                            state_name = f"{outputs['name']}_{epoch}_{batch}_{token}"
-                            self.add_state(state_name, outputs)
+        # Extract available epochs, batches, and tokens
+        self.state_history['epochs'] = sorted(list({key[0] for key in self.state_history['states'].keys()}))
 
-            # Process gradients
-            if 'gradients' in state_data:
-                for grad_name, grad_data in state_data['gradients'].items():
-                    if isinstance(grad_data, dict) and 'name' in grad_data:
-                        state_name = f"{grad_data['name']}_{epoch}_{batch}_{token}"
-                        self.add_state(state_name, grad_data)
+        # Extract available batches for each epoch
+        for epoch in self.state_history['epochs']:
+            self.state_history['batches'][epoch] = sorted(list({key[1] for key in self.state_history['states'].keys() if key[0] == epoch}))
+
+        # Extract available tokens for each (epoch, batch) pair
+        for epoch in self.state_history['epochs']:
+            for batch in self.state_history['batches'][epoch]:
+                key = (epoch, batch)
+                self.state_history['tokens'][key] = sorted(list({key[2] for key in self.state_history['states'].keys() if key[0] == epoch and key[1] == batch}))
+
+    def load_state(self, epoch: int, batch: int, token: int) -> None:
+        """Load a specific state.
+
+        Args:
+            epoch: Epoch index
+            batch: Batch index
+            token: Token index
+        """
+        # Create state key
+        state_key = (epoch, batch, token)
+
+        # Check if state exists
+        if state_key not in self.state_history['states']:
+            print(f"State not found: {state_key}")
+            return
+
+        # Clear current states
+        self.clear()
+
+        # Set current state key
+        self.current_state_key = state_key
+
+        # Get state data
+        state_data = self.state_history['states'][state_key]
+
+        # Process modules
+        if 'modules' in state_data:
+            for module_name, module_data in state_data['modules'].items():
+                # Process inputs
+                if 'inputs' in module_data:
+                    inputs = module_data['inputs']
+                    if isinstance(inputs, list):
+                        for i, input_state in enumerate(inputs):
+                            state_name = f"{module_name}_input_{i}_{epoch}_{batch}_{token}"
+                            self.add_state(state_name, input_state)
+                    elif isinstance(inputs, dict) and 'name' in inputs:
+                        state_name = f"{inputs['name']}_{epoch}_{batch}_{token}"
+                        self.add_state(state_name, inputs)
+
+                # Process outputs
+                if 'outputs' in module_data:
+                    outputs = module_data['outputs']
+                    if isinstance(outputs, list):
+                        for i, output_state in enumerate(outputs):
+                            state_name = f"{module_name}_output_{i}_{epoch}_{batch}_{token}"
+                            self.add_state(state_name, output_state)
+                    elif isinstance(outputs, dict) and 'name' in outputs:
+                        state_name = f"{outputs['name']}_{epoch}_{batch}_{token}"
+                        self.add_state(state_name, outputs)
+
+        # Process gradients
+        if 'gradients' in state_data:
+            for grad_name, grad_data in state_data['gradients'].items():
+                if isinstance(grad_data, dict) and 'name' in grad_data:
+                    state_name = f"{grad_data['name']}_{epoch}_{batch}_{token}"
+                    self.add_state(state_name, grad_data)
 
     def add_state(self, name: str, state: Dict[str, Any]) -> None:
         """Add a state to the visualization manager.
@@ -230,6 +280,42 @@ class VisualizationManager:
             # Set voxel
             self.voxel_renderer.set_voxel(voxel_indices[voxel_index], position, scale, color, value)
             voxel_index += 1
+
+    def get_available_epochs(self) -> List[int]:
+        """Get available epochs.
+
+        Returns:
+            List of available epochs
+        """
+        return self.state_history['epochs']
+
+    def get_available_batches(self, epoch: int) -> List[int]:
+        """Get available batches for an epoch.
+
+        Args:
+            epoch: Epoch index
+
+        Returns:
+            List of available batches
+        """
+        if epoch in self.state_history['batches']:
+            return self.state_history['batches'][epoch]
+        return []
+
+    def get_available_tokens(self, epoch: int, batch: int) -> List[int]:
+        """Get available tokens for an epoch and batch.
+
+        Args:
+            epoch: Epoch index
+            batch: Batch index
+
+        Returns:
+            List of available tokens
+        """
+        key = (epoch, batch)
+        if key in self.state_history['tokens']:
+            return self.state_history['tokens'][key]
+        return []
 
     def get_state_name_for_voxel(self, voxel_index: int) -> Optional[str]:
         """Get the state name for a voxel index.

@@ -713,11 +713,10 @@ Update the README list by marking each item as complete only after meeting its s
       - Answer: How are state changes propagated back to the simulation/model? State changes are propagated through the VisualizationManager, which maintains a mapping between voxels and their corresponding states. When a voxel's value is changed, the VisualizationManager updates the state data in memory. The changes are immediately reflected in the visualization. When the user clicks 'Apply', the changes are made permanent by removing the original value reference. If the user clicks 'Cancel', the changes are reverted by restoring the original value.
       - Terminal Validation: Run the dashboard, click a voxel to edit its value, and verify via terminal logs or a displayed message that the state is updated and the change affects subsequent steps.
       - Git: Commit with `git commit -m "Implement interactive state editing"`
-  - [ ] Implement state timeline/playback controls
+  - [x] Implement state timeline/playback controls
       - Condition: The UI includes a timeline slider and play/pause buttons that allow navigation through captured state history; visualizations update accordingly
-      - Answer: How is the visualization updated during playback? _____________
-        (e.g., by reloading the corresponding state snapshot from TTMStateTracker and refreshing each panel in real time)
-      - Terminal Validation: Run the dashboard, move the timeline slider, and confirm through terminal logs and on-screen display that the state changes as expected.
+      - Answer: How is the visualization updated during playback? During playback, the visualization engine steps through the timeline at a rate determined by the playback speed. For each step, it calls the VisualizationManager's load_state method with the current epoch, batch, and token indices. This method clears the current visualization, loads the state data for the specified indices, and creates new voxels to represent the state. The visualization is updated in real-time as the playback progresses, allowing the user to see how the model's internal state changes over time.
+      - Terminal Validation: Run the dashboard, move the timeline slider, and confirm through terminal logs and on-screen display that the state changes as expected. Verified through test_timeline_navigation.py which shows that stepping forward and backward through the timeline correctly loads the appropriate states.
       - Git: Commit with `git commit -m "Implement state timeline and playback controls"`
   - [ ] Implement real-time performance monitoring and adaptive rendering
       - Condition: The dashboard displays live FPS and performance metrics; if FPS drops below the target, the engine reduces rendering detail (such as voxel count) automatically
