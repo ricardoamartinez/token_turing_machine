@@ -4,7 +4,7 @@ import numpy as np
 import math
 import time
 import imgui
-from imgui.integrations.pyglet import PygletRenderer
+from .imgui_renderer import CustomPygletRenderer
 from typing import Dict, List, Tuple, Optional, Any
 
 from .voxel_renderer import VoxelRenderer
@@ -50,7 +50,12 @@ class VisualizationEngine(pyglet.window.Window):
         self.tooltip_position = (0, 0)
 
         # Initialize ImGui
-        self.init_imgui()
+        try:
+            self.init_imgui()
+            self.imgui_enabled = True
+        except Exception as e:
+            print(f"Error initializing ImGui: {e}")
+            self.imgui_enabled = False
 
         # Initialize state editing parameters
         self.editing_voxel = None
@@ -68,6 +73,17 @@ class VisualizationEngine(pyglet.window.Window):
         self.playing = False
         self.playback_speed = 1.0
         self.last_playback_time = 0.0
+
+        # Initialize performance monitoring parameters
+        self.performance_window_open = True
+        self.fps_history = [60.0] * 100  # Store last 100 FPS values
+        self.fps_history_index = 0
+        self.frame_time = 0.0
+        self.frame_count = 0
+        self.last_fps_update_time = time.time()
+        self.target_fps = 60.0
+        self.adaptive_rendering = True
+        self.detail_level = 1.0  # 1.0 = full detail, 0.0 = no detail
 
         # Initialize matrices
         self.model_matrix = np.identity(4, dtype=np.float32)
@@ -122,8 +138,8 @@ class VisualizationEngine(pyglet.window.Window):
         style.colors[imgui.COLOR_BUTTON_ACTIVE] = (0.4, 0.4, 0.4, 0.8)
         style.colors[imgui.COLOR_TEXT] = (1.0, 1.0, 1.0, 1.0)
 
-        # Create Pyglet renderer
-        self.imgui_renderer = PygletRenderer(self)
+        # Create custom Pyglet renderer
+        self.imgui_renderer = CustomPygletRenderer(self)
 
         # Set up ImGui IO
         io = imgui.get_io()
@@ -267,6 +283,99 @@ class VisualizationEngine(pyglet.window.Window):
         # Render timeline window if open
         if self.timeline_window_open:
             self._render_timeline_window()
+
+        # Render performance monitoring window if open
+        if self.performance_window_open:
+            self._render_performance_window()
+
+    def _render_performance_window(self):
+        """Render the performance monitoring window."""
+        # Set window position and size
+        window_width = 300
+        window_height = 200
+        window_x = self.width - window_width - 10
+        window_y = self.height - window_height - 120  # Position below timeline window
+        imgui.set_next_window_position(window_x, window_y)
+        imgui.set_next_window_size(window_width, window_height)
+
+        # Begin window
+        expanded, open = imgui.begin("Performance", True, imgui.WINDOW_NO_RESIZE | imgui.WINDOW_NO_MOVE)
+        if not open:
+            self.performance_window_open = False
+            imgui.end()
+            return
+
+        # Display current FPS
+        current_fps = self.fps_history[self.fps_history_index]
+        imgui.text(f"FPS: {current_fps:.1f}")
+
+        # Display target FPS
+        imgui.text(f"Target FPS: {self.target_fps:.1f}")
+
+        # Display detail level
+        imgui.text(f"Detail Level: {self.detail_level:.2f}")
+
+        # Display frame time
+        imgui.text(f"Frame Time: {self.frame_time * 1000:.2f} ms")
+
+        # FPS history graph
+        imgui.text("FPS History")
+        graph_width = window_width - 20
+        graph_height = 80
+
+        # Calculate min and max FPS for scaling
+        min_fps = min(self.fps_history)
+        max_fps = max(self.fps_history)
+        if max_fps == min_fps:
+            max_fps = min_fps + 1.0
+
+        # Draw graph background
+        draw_list = imgui.get_window_draw_list()
+        pos = imgui.get_cursor_screen_pos()
+        draw_list.add_rect_filled(
+            pos[0], pos[1],
+            pos[0] + graph_width, pos[1] + graph_height,
+            imgui.get_color_u32_rgba(0.1, 0.1, 0.1, 1.0)
+        )
+
+        # Draw target FPS line
+        target_y = pos[1] + graph_height - (self.target_fps - min_fps) / (max_fps - min_fps) * graph_height
+        draw_list.add_line(
+            pos[0], target_y,
+            pos[0] + graph_width, target_y,
+            imgui.get_color_u32_rgba(1.0, 0.0, 0.0, 0.5),
+            1.0
+        )
+
+        # Draw FPS history
+        for i in range(len(self.fps_history) - 1):
+            fps1 = self.fps_history[i]
+            fps2 = self.fps_history[i + 1]
+            x1 = pos[0] + i * graph_width / len(self.fps_history)
+            x2 = pos[0] + (i + 1) * graph_width / len(self.fps_history)
+            y1 = pos[1] + graph_height - (fps1 - min_fps) / (max_fps - min_fps) * graph_height
+            y2 = pos[1] + graph_height - (fps2 - min_fps) / (max_fps - min_fps) * graph_height
+
+            # Color based on whether FPS is above or below target
+            color = imgui.get_color_u32_rgba(0.0, 1.0, 0.0, 1.0) if fps1 >= self.target_fps else imgui.get_color_u32_rgba(1.0, 0.0, 0.0, 1.0)
+
+            draw_list.add_line(x1, y1, x2, y2, color, 1.0)
+
+        # Advance cursor past graph
+        imgui.dummy(graph_width, graph_height)
+
+        # Adaptive rendering toggle
+        changed, value = imgui.checkbox("Adaptive Rendering", self.adaptive_rendering)
+        if changed:
+            self.adaptive_rendering = value
+
+        # Target FPS slider
+        changed, value = imgui.slider_float("Target FPS", self.target_fps, 30.0, 120.0)
+        if changed:
+            self.target_fps = value
+
+        # End window
+        imgui.end()
 
     def _render_timeline_window(self):
         """Render the timeline window."""
@@ -673,6 +782,41 @@ class VisualizationEngine(pyglet.window.Window):
 
     def update(self, dt):
         """Update the scene."""
+        # Update frame time and FPS
+        self.frame_time = dt
+        self.frame_count += 1
+
+        current_time = time.time()
+        elapsed_time = current_time - self.last_fps_update_time
+
+        # Update FPS every 0.5 seconds
+        if elapsed_time >= 0.5:
+            fps = self.frame_count / elapsed_time
+            self.fps_history[self.fps_history_index] = fps
+            self.fps_history_index = (self.fps_history_index + 1) % len(self.fps_history)
+            self.frame_count = 0
+            self.last_fps_update_time = current_time
+
+            # Implement adaptive rendering
+            if self.adaptive_rendering:
+                current_fps = self.fps_history[self.fps_history_index]
+
+                # If FPS is below target, reduce detail level
+                if current_fps < self.target_fps and self.detail_level > 0.1:
+                    self.detail_level = max(0.1, self.detail_level - 0.05)
+                    print(f"Reducing detail level to {self.detail_level:.2f} (FPS: {current_fps:.1f})")
+
+                    # Apply detail level to visualization manager
+                    self.visualization_manager.set_detail_level(self.detail_level)
+
+                # If FPS is above target, increase detail level
+                elif current_fps > self.target_fps * 1.2 and self.detail_level < 1.0:
+                    self.detail_level = min(1.0, self.detail_level + 0.05)
+                    print(f"Increasing detail level to {self.detail_level:.2f} (FPS: {current_fps:.1f})")
+
+                    # Apply detail level to visualization manager
+                    self.visualization_manager.set_detail_level(self.detail_level)
+
         # Handle keyboard input
         self._handle_keyboard_input(dt)
 
@@ -861,7 +1005,8 @@ class VisualizationEngine(pyglet.window.Window):
         self.voxel_renderer.cleanup()
 
         # Clean up ImGui
-        self.imgui_renderer.shutdown()
+        if hasattr(self, 'imgui_renderer'):
+            self.imgui_renderer.shutdown()
 
 if __name__ == '__main__':
     # Example usage: Create and run the engine

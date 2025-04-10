@@ -718,11 +718,10 @@ Update the README list by marking each item as complete only after meeting its s
       - Answer: How is the visualization updated during playback? During playback, the visualization engine steps through the timeline at a rate determined by the playback speed. For each step, it calls the VisualizationManager's load_state method with the current epoch, batch, and token indices. This method clears the current visualization, loads the state data for the specified indices, and creates new voxels to represent the state. The visualization is updated in real-time as the playback progresses, allowing the user to see how the model's internal state changes over time.
       - Terminal Validation: Run the dashboard, move the timeline slider, and confirm through terminal logs and on-screen display that the state changes as expected. Verified through test_timeline_navigation.py which shows that stepping forward and backward through the timeline correctly loads the appropriate states.
       - Git: Commit with `git commit -m "Implement state timeline and playback controls"`
-  - [ ] Implement real-time performance monitoring and adaptive rendering
+  - [x] Implement real-time performance monitoring and adaptive rendering
       - Condition: The dashboard displays live FPS and performance metrics; if FPS drops below the target, the engine reduces rendering detail (such as voxel count) automatically
-      - Answer: What is the target FPS and how is detail adjusted? _____________
-        (e.g., target of 60 FPS; if FPS falls below 60, the engine dynamically down-samples voxel data or decreases shader sample count)
-      - Terminal Validation: Run the dashboard under load, observe the FPS readout in the terminal or on-screen overlay, and verify via debug logs that adaptive rendering triggers when FPS falls below the target.
+      - Answer: What is the target FPS and how is detail adjusted? The target FPS is 60 by default, but can be adjusted by the user through the performance monitoring window. When the FPS falls below the target, the engine reduces the detail level by decreasing the number of voxels rendered per state. The detail level ranges from 0.1 (10% of voxels) to 1.0 (100% of voxels), with a minimum of 10 voxels per state to ensure that the visualization remains meaningful. When the FPS exceeds the target by 20%, the detail level is gradually increased back to 1.0.
+      - Terminal Validation: Run the dashboard under load, observe the FPS readout in the terminal or on-screen overlay, and verify via debug logs that adaptive rendering triggers when FPS falls below the target. Verified through test_performance_monitoring.py which shows that the detail level is automatically adjusted based on the FPS.
       - Git: Commit with `git commit -m "Implement performance monitoring and adaptive rendering"`
 
 - [ ] Develop Dear ImGui-Based Interactive UI

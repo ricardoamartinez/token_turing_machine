@@ -46,6 +46,10 @@ class VisualizationManager:
         }
         self.current_state_key: Optional[Tuple[int, int, int]] = None
 
+        # Initialize adaptive rendering parameters
+        self.detail_level = 1.0  # 1.0 = full detail, 0.0 = no detail
+        self.max_voxels_per_state = 100  # Maximum number of voxels to render per state
+
     def load_state_history(self, filepath: str) -> None:
         """Load state history from a file.
 
@@ -186,6 +190,22 @@ class VisualizationManager:
         # Calculate the number of non-zero voxels
         non_zero_indices = np.nonzero(voxels)
         num_non_zero = len(non_zero_indices[0])
+
+        # Apply detail level by limiting the number of voxels
+        if num_non_zero > self.max_voxels_per_state:
+            # Sample voxels based on detail level
+            step = num_non_zero // self.max_voxels_per_state
+            if step > 1:
+                # Create a mask for the indices to keep
+                mask = np.zeros(num_non_zero, dtype=bool)
+                mask[::step] = True
+                mask = mask[:self.max_voxels_per_state]  # Ensure we don't exceed max_voxels_per_state
+
+                # Apply the mask to the indices
+                non_zero_indices = (non_zero_indices[0][mask], non_zero_indices[1][mask], non_zero_indices[2][mask])
+                num_non_zero = len(non_zero_indices[0])
+
+                print(f"Reduced voxels for state {state_name} from {len(mask)} to {num_non_zero} (detail level: {self.detail_level:.2f})")
 
         # Allocate voxel indices
         voxel_indices = list(range(self.next_voxel_index, self.next_voxel_index + num_non_zero))
@@ -394,6 +414,25 @@ class VisualizationManager:
 
         # Print debug information
         print(f"Reverted changes to state {state_name}")
+
+    def set_detail_level(self, detail_level: float) -> None:
+        """Set the detail level for adaptive rendering.
+
+        Args:
+            detail_level: Detail level (0.0 to 1.0)
+        """
+        self.detail_level = max(0.0, min(1.0, detail_level))
+
+        # Calculate the maximum number of voxels per state based on detail level
+        self.max_voxels_per_state = int(100 * self.detail_level)
+        if self.max_voxels_per_state < 10:
+            self.max_voxels_per_state = 10  # Minimum of 10 voxels per state
+
+        # Reload the current state with the new detail level
+        if self.current_state_key is not None:
+            self.load_state(*self.current_state_key)
+
+        print(f"Set detail level to {self.detail_level:.2f} (max voxels per state: {self.max_voxels_per_state})")
 
     def update(self) -> None:
         """Update the visualization."""
