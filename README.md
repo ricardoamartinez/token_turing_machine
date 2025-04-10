@@ -623,9 +623,9 @@ Update the README list by marking each item as complete only after meeting its s
       - Answer: How are target modules specified for hook registration? Target modules are specified in a dictionary called `target_modules` where keys are module types and values are lists of module name patterns to match. The tracker then iterates through all named modules in the model and registers hooks for any module whose name contains one of the specified patterns.
       - Terminal Validation: Write and run a test script that instantiates TTMStateTracker and prints the list of target module names where hooks are registered; verify the output in the terminal.
       - Git: Commit with `git commit -m "Implement state tracker hook registration"`
-  - [ ] Implement state recording logic within hooks
+  - [x] Implement state recording logic within hooks
       - Condition: Hooks capture input/output tensors and store them in `TTMStateTracker` with metadata (module name, step, token index)
-      - Answer: What metadata is stored alongside each captured tensor? _____________
+      - Answer: What metadata is stored alongside each captured tensor? Each captured tensor is stored with metadata including the module name, epoch index, batch index, token index, and whether it's an input or output tensor. The tensors are organized in a nested dictionary structure where the primary key is a tuple of (epoch, batch, token).
       - Terminal Validation: Run a sample training iteration that triggers the hooks and inspect the printed log or saved output to confirm that each state is recorded with proper metadata.
       - Git: Commit with `git commit -m "Implement state recording in hooks"`
   - [ ] Standardize captured state format
