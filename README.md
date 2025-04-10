@@ -633,9 +633,9 @@ Update the README list by marking each item as complete only after meeting its s
       - Answer: Provide an example of the standardized state format: { "name": "token_embedding_input_0", "type": "tensor", "shape": torch.Size([1, 20]), "data": <tensor of shape (1, 20)>, "metadata": {"epoch": 0, "batch": 0, "token": 0, "module": "token_embedding", "is_input": True, "index": 0} }
       - Terminal Validation: Run a test that prints one captured state and verify in the terminal that it contains the required keys and structure.
       - Git: Commit with `git commit -m "Standardize captured state format"`
-  - [ ] Integrate `TTMStateTracker` with the training loop
+  - [x] Integrate `TTMStateTracker` with the training loop
       - Condition: `TTMTrainer` initializes and uses `TTMStateTracker` to record states during training/evaluation
-      - Answer: How is the tracker managed across epochs/batches? _____________
+      - Answer: How is the tracker managed across epochs/batches? The trainer updates the state tracker at three levels: 1) At the start of each epoch with `state_tracker.start_epoch(epoch)`, 2) At the start of each batch with `state_tracker.start_batch(batch)`, and 3) For each token in the sequence with `state_tracker.start_token(token_idx)`. The trainer also saves the captured states at the end of each epoch.
       - Terminal Validation: Run the training loop for one epoch and check the terminal/logs to confirm that state snapshots are saved for each batch and epoch.
       - Git: Commit with `git commit -m "Integrate state tracker into training loop"`
 
