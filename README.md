@@ -640,10 +640,9 @@ Update the README list by marking each item as complete only after meeting its s
       - Git: Commit with `git commit -m "Integrate state tracker into training loop"`
 
 - [ ] Develop Modular VisMapper Interface
-  - [ ] Define abstract VisMapper base class
+  - [x] Define abstract VisMapper base class
       - Condition: VisMapper class exists in `src/ttm/visualization/vis_mapper.py` with abstract methods (e.g., map_to_voxels, get_voxel_layout)
-      - Answer: What abstract methods must subclasses implement? _____________
-        (e.g., map_to_voxels(), get_voxel_layout(), update_mapping(new_tensor))
+      - Answer: What abstract methods must subclasses implement? Subclasses must implement three abstract methods: 1) `map_to_voxels(state)` which converts a model state to a voxel representation, 2) `get_voxel_layout()` which returns layout information for the voxel representation, and 3) `get_color_map()` which returns color mapping information for the voxels.
       - Terminal Validation: Run
         `python -c "from src.ttm.visualization.vis_mapper import VisMapper; print(VisMapper.__abstractmethods__)"`
         and verify that the set of abstract methods is correctly defined.
