@@ -686,10 +686,9 @@ Update the README list by marking each item as complete only after meeting its s
       - Answer: What is the strategy for minimizing GPU data transfer? The VoxelRenderer class tracks which voxels have been modified using a set called `modified_voxels`. When the `update_buffers` method is called, it only updates the portions of the VBO that correspond to the modified voxels using `glBufferSubData`. This minimizes GPU data transfer by only sending the changed data rather than the entire buffer.
       - Terminal Validation: Insert log messages in the VBO update code, run a test frame, and verify in the terminal that update statistics show only modified data is transferred.
       - Git: Commit with `git commit -m "Implement dynamic VBO management"`
-  - [ ] Integrate VisMapper output with rendering engine
+  - [x] Integrate VisMapper output with rendering engine
       - Condition: The engine takes voxel grid data (positions, colors, scales) from the VisMapper and renders it using instanced drawing calls
-      - Answer: How is data passed from mappers to shaders? _____________
-        (e.g., voxel data is loaded into a VBO; vertex attribute pointers are set up; instanced rendering is used via glDrawArraysInstanced)
+      - Answer: How is data passed from mappers to shaders? The VisualizationManager class acts as an intermediary between the VisMapper and the VoxelRenderer. It calls the mapper's map_to_voxels method to convert model states to voxel data, then extracts the positions, colors, scales, and values from the voxel data and passes them to the VoxelRenderer's set_voxel method. The VoxelRenderer then stores this data in a structured NumPy array and uploads it to the GPU using glBufferSubData. The shaders access this data through vertex attributes with glVertexAttribPointer and glVertexAttribDivisor for instanced rendering.
       - Terminal Validation: Run a test that prints a summary of voxel data sent to the GPU and visually confirm via rendered output that data changes are reflected on screen.
       - Git: Commit with `git commit -m "Integrate VisMapper output with renderer"`
 
