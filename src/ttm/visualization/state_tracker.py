@@ -127,14 +127,48 @@ class TTMStateTracker:
         if module_name not in self.state_history['states'][state_key]['modules']:
             self.state_history['states'][state_key]['modules'][module_name] = {}
 
-        # Store input tensor(s)
+        # Store input tensor(s) in standardized format
         if isinstance(inputs, tuple) and len(inputs) > 0:
             # Handle tuple of tensors
-            inputs_data = [inp.detach().cpu().numpy() if isinstance(inp, torch.Tensor) else inp for inp in inputs]
-            self.state_history['states'][state_key]['modules'][module_name]['inputs'] = inputs_data
+            for i, inp in enumerate(inputs):
+                if isinstance(inp, torch.Tensor):
+                    # Create standardized state format
+                    state = {
+                        'name': f"{module_name}_input_{i}",
+                        'type': 'tensor',
+                        'shape': inp.shape,
+                        'data': inp.detach().cpu().numpy(),
+                        'metadata': {
+                            'epoch': self.current_epoch,
+                            'batch': self.current_batch,
+                            'token': self.current_token,
+                            'module': module_name,
+                            'is_input': True,
+                            'index': i
+                        }
+                    }
+                    # Store in state history
+                    if 'inputs' not in self.state_history['states'][state_key]['modules'][module_name]:
+                        self.state_history['states'][state_key]['modules'][module_name]['inputs'] = []
+                    self.state_history['states'][state_key]['modules'][module_name]['inputs'].append(state)
         elif isinstance(inputs, torch.Tensor):
             # Handle single tensor
-            self.state_history['states'][state_key]['modules'][module_name]['inputs'] = inputs.detach().cpu().numpy()
+            # Create standardized state format
+            state = {
+                'name': f"{module_name}_input",
+                'type': 'tensor',
+                'shape': inputs.shape,
+                'data': inputs.detach().cpu().numpy(),
+                'metadata': {
+                    'epoch': self.current_epoch,
+                    'batch': self.current_batch,
+                    'token': self.current_token,
+                    'module': module_name,
+                    'is_input': True
+                }
+            }
+            # Store in state history
+            self.state_history['states'][state_key]['modules'][module_name]['inputs'] = state
 
     def _capture_output(self, module_name: str, inputs: torch.Tensor, outputs: torch.Tensor):
         """Capture module output during forward pass.
@@ -163,14 +197,48 @@ class TTMStateTracker:
         if module_name not in self.state_history['states'][state_key]['modules']:
             self.state_history['states'][state_key]['modules'][module_name] = {}
 
-        # Store output tensor(s)
+        # Store output tensor(s) in standardized format
         if isinstance(outputs, tuple) and len(outputs) > 0:
             # Handle tuple of tensors
-            outputs_data = [out.detach().cpu().numpy() if isinstance(out, torch.Tensor) else out for out in outputs]
-            self.state_history['states'][state_key]['modules'][module_name]['outputs'] = outputs_data
+            for i, out in enumerate(outputs):
+                if isinstance(out, torch.Tensor):
+                    # Create standardized state format
+                    state = {
+                        'name': f"{module_name}_output_{i}",
+                        'type': 'tensor',
+                        'shape': out.shape,
+                        'data': out.detach().cpu().numpy(),
+                        'metadata': {
+                            'epoch': self.current_epoch,
+                            'batch': self.current_batch,
+                            'token': self.current_token,
+                            'module': module_name,
+                            'is_input': False,
+                            'index': i
+                        }
+                    }
+                    # Store in state history
+                    if 'outputs' not in self.state_history['states'][state_key]['modules'][module_name]:
+                        self.state_history['states'][state_key]['modules'][module_name]['outputs'] = []
+                    self.state_history['states'][state_key]['modules'][module_name]['outputs'].append(state)
         elif isinstance(outputs, torch.Tensor):
             # Handle single tensor
-            self.state_history['states'][state_key]['modules'][module_name]['outputs'] = outputs.detach().cpu().numpy()
+            # Create standardized state format
+            state = {
+                'name': f"{module_name}_output",
+                'type': 'tensor',
+                'shape': outputs.shape,
+                'data': outputs.detach().cpu().numpy(),
+                'metadata': {
+                    'epoch': self.current_epoch,
+                    'batch': self.current_batch,
+                    'token': self.current_token,
+                    'module': module_name,
+                    'is_input': False
+                }
+            }
+            # Store in state history
+            self.state_history['states'][state_key]['modules'][module_name]['outputs'] = state
 
     def _capture_forward_states(self, inputs: torch.Tensor, outputs: torch.Tensor):
         """
@@ -224,8 +292,23 @@ class TTMStateTracker:
         if 'gradients' not in self.state_history['states'][state_key]:
             self.state_history['states'][state_key]['gradients'] = {}
 
+        # Create standardized state format
+        state = {
+            'name': f"gradient_{name}",
+            'type': 'tensor',
+            'shape': grad.shape,
+            'data': grad.detach().cpu().numpy(),
+            'metadata': {
+                'epoch': self.current_epoch,
+                'batch': self.current_batch,
+                'token': self.current_token,
+                'parameter_name': name,
+                'is_gradient': True
+            }
+        }
+
         # Store gradient
-        self.state_history['states'][state_key]['gradients'][name] = grad.detach().cpu().numpy()
+        self.state_history['states'][state_key]['gradients'][name] = state
 
         # Allow gradient to flow normally
         return grad

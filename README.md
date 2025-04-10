@@ -628,10 +628,9 @@ Update the README list by marking each item as complete only after meeting its s
       - Answer: What metadata is stored alongside each captured tensor? Each captured tensor is stored with metadata including the module name, epoch index, batch index, token index, and whether it's an input or output tensor. The tensors are organized in a nested dictionary structure where the primary key is a tuple of (epoch, batch, token).
       - Terminal Validation: Run a sample training iteration that triggers the hooks and inspect the printed log or saved output to confirm that each state is recorded with proper metadata.
       - Git: Commit with `git commit -m "Implement state recording in hooks"`
-  - [ ] Standardize captured state format
+  - [x] Standardize captured state format
       - Condition: All captured states are stored consistently (e.g., dict with 'name', 'type', 'shape', 'data', 'metadata' keys)
-      - Answer: Provide an example of the standardized state format: _____________
-        (e.g., { "name": "Memory_0", "type": "tensor", "shape": (16, 128), "data": <tensor>, "metadata": {"epoch": 3, "batch": 5, "token": 12} } )
+      - Answer: Provide an example of the standardized state format: { "name": "token_embedding_input_0", "type": "tensor", "shape": torch.Size([1, 20]), "data": <tensor of shape (1, 20)>, "metadata": {"epoch": 0, "batch": 0, "token": 0, "module": "token_embedding", "is_input": True, "index": 0} }
       - Terminal Validation: Run a test that prints one captured state and verify in the terminal that it contains the required keys and structure.
       - Git: Commit with `git commit -m "Standardize captured state format"`
   - [ ] Integrate `TTMStateTracker` with the training loop
