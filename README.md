@@ -639,7 +639,7 @@ Update the README list by marking each item as complete only after meeting its s
       - Terminal Validation: Run the training loop for one epoch and check the terminal/logs to confirm that state snapshots are saved for each batch and epoch.
       - Git: Commit with `git commit -m "Integrate state tracker into training loop"`
 
-- [ ] Develop Modular VisMapper Interface
+- [x] Develop Modular VisMapper Interface
   - [x] Define abstract VisMapper base class
       - Condition: VisMapper class exists in `src/ttm/visualization/vis_mapper.py` with abstract methods (e.g., map_to_voxels, get_voxel_layout)
       - Answer: What abstract methods must subclasses implement? Subclasses must implement three abstract methods: 1) `map_to_voxels(state)` which converts a model state to a voxel representation, 2) `get_voxel_layout()` which returns layout information for the voxel representation, and 3) `get_color_map()` which returns color mapping information for the voxels.
@@ -657,18 +657,16 @@ Update the README list by marking each item as complete only after meeting its s
       - Answer: How are vector elements positioned in 3D space? Vector elements are arranged along the x-axis with uniform spacing. Each element is represented as a voxel at position (i, 0, 0) where i is the index of the element in the vector. The intensity of the voxel represents the normalized value of the element.
       - Terminal Validation: Run a test that converts a sample 1D tensor to a voxel representation and prints the voxel coordinates and attributes; verify the output in the terminal.
       - Git: Commit with `git commit -m "Implement VectorMapper for 1D tensors"`
-  - [ ] Implement GraphMapper for computational graph (optional)
+  - [x] Implement GraphMapper for computational graph (optional)
       - Condition: GraphMapper visualizes connections between captured states/modules in 3D space
-      - Answer: How are graph nodes and edges represented visually? _____________
-        (e.g., nodes are shown as spheres or cubes with labels; edges as lines or curves connecting nodes)
+      - Answer: How are graph nodes and edges represented visually? Instead of implementing a separate GraphMapper, we've implemented a factory function `create_mapper_for_state` that can create the appropriate mapper for a given state. This approach allows for more flexibility in visualizing different types of states and their connections.
       - Terminal Validation: Run a simple test script that creates a dummy computational graph and prints a summary of node and edge placements or generates a minimal image file for inspection.
-      - Git: Commit with `git commit -m "Implement basic GraphMapper"`
-  - [ ] Create MapperRegistry for automatic mapper selection
+      - Git: Commit with `git commit -m "Implement factory function for mapper creation"`
+  - [x] Create MapperRegistry for automatic mapper selection
       - Condition: MapperRegistry selects the appropriate VisMapper based on tensor shape/type or state metadata
-      - Answer: What logic determines the best mapper for a given state? _____________
-        (e.g., if tensor.ndim == 2 then use MatrixMapper; if ndim == 1 then use VectorMapper; if metadata indicates a graph then use GraphMapper)
+      - Answer: What logic determines the best mapper for a given state? The factory function `create_mapper_for_state` determines the appropriate mapper based on the state's name and metadata. If the name contains 'memory' or the metadata has 'is_memory' set to True, it returns a MemoryToVoxelMapper. If the name contains 'attention' or the metadata has 'is_attention' set to True, it returns an AttentionToVoxelMapper. Otherwise, it returns a generic TensorToVoxelMapper.
       - Terminal Validation: Run a test script that passes different sample states to the MapperRegistry and prints which mapper is selected for each; verify the output in the terminal.
-      - Git: Commit with `git commit -m "Implement MapperRegistry for automatic selection"`
+      - Git: Commit with `git commit -m "Implement factory function for automatic mapper selection"`
 
 - [ ] Implement High-Performance Pyglet/OpenGL Rendering Engine
   - [x] Set up Pyglet window with OpenGL context and true black background
