@@ -419,20 +419,58 @@ class VisualizationEngine:
         imgui.create_context()
         self.impl = GlfwRenderer(self.window)
 
-        # Configure ImGui style for dark mode
+        # Configure ImGui style for a modern, professional dark mode
         imgui.style_colors_dark()
         style = imgui.get_style()
-        style.window_rounding = 0.0
-        style.colors[imgui.COLOR_WINDOW_BACKGROUND] = (0.0, 0.0, 0.0, 0.8)
-        style.colors[imgui.COLOR_TITLE_BACKGROUND_ACTIVE] = (0.1, 0.1, 0.1, 1.0)
-        style.colors[imgui.COLOR_TITLE_BACKGROUND] = (0.1, 0.1, 0.1, 0.8)
-        style.colors[imgui.COLOR_FRAME_BACKGROUND] = (0.05, 0.05, 0.05, 0.8)
-        style.colors[imgui.COLOR_FRAME_BACKGROUND_HOVERED] = (0.15, 0.15, 0.15, 0.8)
-        style.colors[imgui.COLOR_FRAME_BACKGROUND_ACTIVE] = (0.25, 0.25, 0.25, 0.8)
-        style.colors[imgui.COLOR_BUTTON] = (0.2, 0.2, 0.2, 0.8)
-        style.colors[imgui.COLOR_BUTTON_HOVERED] = (0.3, 0.3, 0.3, 0.8)
-        style.colors[imgui.COLOR_BUTTON_ACTIVE] = (0.4, 0.4, 0.4, 0.8)
-        style.colors[imgui.COLOR_TEXT] = (1.0, 1.0, 1.0, 1.0)
+
+        # Set window styling
+        style.window_rounding = 8.0  # Rounded corners for panels
+        style.window_border_size = 1.0  # Thin border
+        style.window_padding = (12, 12)  # More padding inside windows
+
+        # Set frame styling
+        style.frame_rounding = 4.0  # Rounded corners for widgets
+        style.frame_border_size = 1.0  # Thin border for widgets
+        style.frame_padding = (8, 4)  # More padding in widgets
+        style.item_spacing = (10, 8)  # More space between items
+        style.item_inner_spacing = (6, 4)  # More space inside items
+
+        # Set grab styling (sliders, scrollbars)
+        style.grab_min_size = 10.0  # Larger grab handles
+        style.grab_rounding = 3.0  # Rounded grab handles
+
+        # Set color scheme - true black background with blue accent
+        primary_color = (0.2, 0.4, 0.8, 1.0)  # Blue accent color
+
+        # Window colors
+        style.colors[imgui.COLOR_WINDOW_BACKGROUND] = (0.0, 0.0, 0.0, 0.95)  # True black background
+        style.colors[imgui.COLOR_TITLE_BACKGROUND_ACTIVE] = (0.1, 0.2, 0.3, 1.0)  # Dark blue title when active
+        style.colors[imgui.COLOR_TITLE_BACKGROUND] = (0.05, 0.1, 0.15, 1.0)  # Darker blue title when inactive
+        style.colors[imgui.COLOR_TITLE_BACKGROUND_COLLAPSED] = (0.0, 0.0, 0.0, 0.9)  # Black when collapsed
+
+        # Widget colors
+        style.colors[imgui.COLOR_FRAME_BACKGROUND] = (0.1, 0.1, 0.1, 1.0)  # Dark gray widget background
+        style.colors[imgui.COLOR_FRAME_BACKGROUND_HOVERED] = (0.15, 0.2, 0.25, 1.0)  # Slightly blue when hovered
+        style.colors[imgui.COLOR_FRAME_BACKGROUND_ACTIVE] = (0.2, 0.3, 0.4, 1.0)  # More blue when active
+
+        # Button colors
+        style.colors[imgui.COLOR_BUTTON] = (0.2, 0.3, 0.4, 1.0)  # Blue buttons
+        style.colors[imgui.COLOR_BUTTON_HOVERED] = (0.3, 0.4, 0.5, 1.0)  # Lighter blue when hovered
+        style.colors[imgui.COLOR_BUTTON_ACTIVE] = (0.4, 0.5, 0.6, 1.0)  # Even lighter when pressed
+
+        # Text colors
+        style.colors[imgui.COLOR_TEXT] = (0.9, 0.9, 0.9, 1.0)  # Slightly off-white text for better readability
+        style.colors[imgui.COLOR_TEXT_DISABLED] = (0.5, 0.5, 0.5, 1.0)  # Medium gray for disabled text
+
+        # Slider, checkbox colors
+        style.colors[imgui.COLOR_CHECK_MARK] = primary_color  # Blue checkmarks
+        style.colors[imgui.COLOR_SLIDER_GRAB] = primary_color  # Blue slider handles
+        style.colors[imgui.COLOR_SLIDER_GRAB_ACTIVE] = (0.3, 0.5, 0.9, 1.0)  # Lighter blue when active
+
+        # Header colors (for collapsing headers)
+        style.colors[imgui.COLOR_HEADER] = (0.15, 0.2, 0.25, 1.0)  # Dark blue headers
+        style.colors[imgui.COLOR_HEADER_HOVERED] = (0.2, 0.3, 0.4, 1.0)  # Medium blue when hovered
+        style.colors[imgui.COLOR_HEADER_ACTIVE] = (0.25, 0.35, 0.45, 1.0)  # Lighter blue when active
 
     def update(self, dt):
         """Update the visualization engine.
@@ -484,27 +522,35 @@ class VisualizationEngine:
         else:
             menu_bar_height = 0
 
-        # Calculate panel sizes and positions
-        main_panel_width = self.window_width * 0.75
-        right_panel_width = self.window_width * 0.25
-        top_panel_height = (self.window_height - menu_bar_height) * 0.75
-        bottom_panel_height = (self.window_height - menu_bar_height) * 0.25
+        # Define margins and spacing for better UX
+        margin = 10  # Margin between panels and window edges
+        spacing = 10  # Spacing between panels
 
-        # Set positions for each panel
+        # Calculate available space after accounting for margins and spacing
+        available_width = self.window_width - (2 * margin + spacing)
+        available_height = self.window_height - menu_bar_height - (2 * margin + spacing)
+
+        # Calculate panel sizes with golden ratio (approximately 0.618 : 0.382)
+        main_panel_width = available_width * 0.618
+        right_panel_width = available_width * 0.382
+        top_panel_height = available_height * 0.618
+        bottom_panel_height = available_height * 0.382
+
+        # Set positions for each panel with margins and spacing
         # 3D Visualization panel (main area)
-        imgui.set_next_window_position(0, menu_bar_height)
+        imgui.set_next_window_position(margin, menu_bar_height + margin)
         imgui.set_next_window_size(main_panel_width, top_panel_height)
 
         # Timeline panel (bottom)
-        imgui.set_next_window_position(0, menu_bar_height + top_panel_height)
+        imgui.set_next_window_position(margin, menu_bar_height + margin + top_panel_height + spacing)
         imgui.set_next_window_size(main_panel_width, bottom_panel_height)
 
         # Properties panel (right)
-        imgui.set_next_window_position(main_panel_width, menu_bar_height)
+        imgui.set_next_window_position(margin + main_panel_width + spacing, menu_bar_height + margin)
         imgui.set_next_window_size(right_panel_width, top_panel_height)
 
         # Performance panel (bottom right)
-        imgui.set_next_window_position(main_panel_width, menu_bar_height + top_panel_height)
+        imgui.set_next_window_position(margin + main_panel_width + spacing, menu_bar_height + margin + top_panel_height + spacing)
         imgui.set_next_window_size(right_panel_width, bottom_panel_height)
 
         # Create panels
@@ -516,8 +562,9 @@ class VisualizationEngine:
         )
 
         # 3D Visualization panel
-        imgui.begin("3D Visualization", True, window_flags)
-        imgui.text("This panel contains the 3D visualization of the model's internal state.")
+        imgui.begin("Model Memory Visualization", True, window_flags)
+        imgui.text_colored("Interactive 3D visualization of the model's memory state", 0.7, 0.8, 1.0, 1.0)
+        imgui.separator()
 
         # Get current state
         state = self.state_tracker.get_state(self.current_step)
@@ -584,8 +631,9 @@ class VisualizationEngine:
         imgui.end()
 
         # Timeline panel
-        imgui.begin("Timeline", True, window_flags)
-        imgui.text("This panel contains timeline controls for navigating through the model's state history.")
+        imgui.begin("Sequence Timeline", True, window_flags)
+        imgui.text_colored("Navigate through the model's execution steps", 0.7, 0.8, 1.0, 1.0)
+        imgui.separator()
 
         # Add timeline controls
         if self.state_tracker.current_step >= 0:
@@ -627,8 +675,9 @@ class VisualizationEngine:
         imgui.end()
 
         # Properties panel
-        imgui.begin("Properties", True, window_flags)
-        imgui.text("This panel shows properties of the selected state.")
+        imgui.begin("Model State Inspector", True, window_flags)
+        imgui.text_colored("Detailed information about the current model state", 0.7, 0.8, 1.0, 1.0)
+        imgui.separator()
 
         # Display state properties
         state = self.state_tracker.get_state(self.current_step)
@@ -704,8 +753,9 @@ class VisualizationEngine:
         imgui.end()
 
         # Performance panel
-        imgui.begin("Performance", True, window_flags)
-        imgui.text("This panel shows performance metrics.")
+        imgui.begin("Performance Monitor", True, window_flags)
+        imgui.text_colored("Real-time performance metrics and settings", 0.7, 0.8, 1.0, 1.0)
+        imgui.separator()
 
         # Display FPS
         imgui.text(f"FPS: {self.performance_monitor.get_current_fps():.1f}")
