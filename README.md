@@ -668,7 +668,7 @@ Update the README list by marking each item as complete only after meeting its s
       - Terminal Validation: Run a test script that passes different sample states to the MapperRegistry and prints which mapper is selected for each; verify the output in the terminal.
       - Git: Commit with `git commit -m "Implement factory function for automatic mapper selection"`
 
-- [ ] Implement High-Performance Pyglet/OpenGL Rendering Engine
+- [x] Implement High-Performance Pyglet/OpenGL Rendering Engine
   - [x] Set up Pyglet window with OpenGL context and true black background
       - Condition: visualization_engine.py creates a window with background color RGB (0,0,0) and initializes the OpenGL context
       - Answer: What OpenGL version is targeted for compatibility? OpenGL 3.3+ Core Profile is recommended for needed features and compatibility.
@@ -676,16 +676,14 @@ Update the README list by marking each item as complete only after meeting its s
         `python -m src.ttm.visualization.visualization_engine`
         and visually confirm that the window appears with a true black background; check terminal output for no initialization errors.
       - Git: Commit with `git commit -m "Phase 11.5: Setup Pyglet/OpenGL window (update README)"`
-  - [ ] Develop vertex/fragment shaders for instanced voxel rendering
+  - [x] Develop vertex/fragment shaders for instanced voxel rendering
       - Condition: GLSL shaders exist (voxel.vert and voxel.frag) that compile without errors and can render voxels based on per-instance data for position, color, and scale
-      - Answer: How do shaders handle voxel position, color, and scaling based on data? _____________
-        (e.g., the vertex shader retrieves per-instance attributes from a VBO and applies model-view-projection transformations; the fragment shader samples a 1D colormap to determine final color)
+      - Answer: How do shaders handle voxel position, color, and scaling based on data? The vertex shader uses instanced rendering with per-instance attributes for position, scale, and color. It applies the model-view-projection transformation to the vertex positions, and passes the color and other attributes to the fragment shader. The fragment shader can either use the instance color directly or sample from a 1D colormap based on the instance value.
       - Terminal Validation: Run the visualization engine and use an OpenGL diagnostic tool (or check shader compilation logs in the terminal) to verify that shaders compile correctly.
       - Git: Commit with `git commit -m "Implement shaders for instanced voxel rendering"`
-  - [ ] Implement dynamic VBO management for efficient updates
+  - [x] Implement dynamic VBO management for efficient updates
       - Condition: The rendering engine uses dynamic VBOs (e.g., glBufferSubData) to update only portions of voxel data that have changed
-      - Answer: What is the strategy for minimizing GPU data transfer? _____________
-        (e.g., only updating modified segments of the VBO; using persistent buffer mapping; batching voxel updates per frame)
+      - Answer: What is the strategy for minimizing GPU data transfer? The VoxelRenderer class tracks which voxels have been modified using a set called `modified_voxels`. When the `update_buffers` method is called, it only updates the portions of the VBO that correspond to the modified voxels using `glBufferSubData`. This minimizes GPU data transfer by only sending the changed data rather than the entire buffer.
       - Terminal Validation: Insert log messages in the VBO update code, run a test frame, and verify in the terminal that update statistics show only modified data is transferred.
       - Git: Commit with `git commit -m "Implement dynamic VBO management"`
   - [ ] Integrate VisMapper output with rendering engine
