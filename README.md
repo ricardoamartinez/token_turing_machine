@@ -610,119 +610,194 @@ Update the README list by marking each item as complete only after meeting its s
 
 ### Phase 11.5: Interactive 3D Voxel Visualization Engine (Hook-Based)
 
-- [ ] **Implement State Capture via Hooks**
-  - [ ] Create `TTMStateTracker` class
+- [ ] Implement State Capture via Hooks
+  - [x] Create `TTMStateTracker` class
       - Condition: `TTMStateTracker` class exists in `src/ttm/visualization/state_tracker.py`
-      - Answer: What data structure is used to store captured states? _____________
+      - Answer: What data structure is used to store captured states? A nested dictionary structure called `state_history` with keys for 'epochs', 'batches', 'tokens', and 'states', where 'states' maps (epoch, batch, token) tuples to state dictionaries containing captured tensors.
+      - Terminal Validation: Run
+        `python -c "from src.ttm.visualization.state_tracker import TTMStateTracker; print(TTMStateTracker)"`
+        and verify that the class definition is printed.
       - Git: Create branch with `git checkout -b feature/3d-visualization` (if not already created)
-  - [ ] Implement hook registration mechanism
+  - [x] Implement hook registration mechanism
       - Condition: `TTMStateTracker` can register forward hooks on specified TTM submodules (embeddings, memory, attention, etc.)
-      - Answer: How are target modules specified for hook registration? _____________
+      - Answer: How are target modules specified for hook registration? Target modules are specified in a dictionary called `target_modules` where keys are module types and values are lists of module name patterns to match. The tracker then iterates through all named modules in the model and registers hooks for any module whose name contains one of the specified patterns.
+      - Terminal Validation: Write and run a test script that instantiates TTMStateTracker and prints the list of target module names where hooks are registered; verify the output in the terminal.
       - Git: Commit with `git commit -m "Implement state tracker hook registration"`
   - [ ] Implement state recording logic within hooks
       - Condition: Hooks capture input/output tensors and store them in `TTMStateTracker` with metadata (module name, step, token index)
       - Answer: What metadata is stored alongside each captured tensor? _____________
+      - Terminal Validation: Run a sample training iteration that triggers the hooks and inspect the printed log or saved output to confirm that each state is recorded with proper metadata.
       - Git: Commit with `git commit -m "Implement state recording in hooks"`
   - [ ] Standardize captured state format
       - Condition: All captured states are stored consistently (e.g., dict with 'name', 'type', 'shape', 'data', 'metadata' keys)
       - Answer: Provide an example of the standardized state format: _____________
+        (e.g., { "name": "Memory_0", "type": "tensor", "shape": (16, 128), "data": <tensor>, "metadata": {"epoch": 3, "batch": 5, "token": 12} } )
+      - Terminal Validation: Run a test that prints one captured state and verify in the terminal that it contains the required keys and structure.
       - Git: Commit with `git commit -m "Standardize captured state format"`
   - [ ] Integrate `TTMStateTracker` with the training loop
       - Condition: `TTMTrainer` initializes and uses `TTMStateTracker` to record states during training/evaluation
       - Answer: How is the tracker managed across epochs/batches? _____________
+      - Terminal Validation: Run the training loop for one epoch and check the terminal/logs to confirm that state snapshots are saved for each batch and epoch.
       - Git: Commit with `git commit -m "Integrate state tracker into training loop"`
 
-- [ ] **Develop Modular VisMapper Interface**
-  - [ ] Define abstract `VisMapper` base class
-      - Condition: `VisMapper` class exists in `src/ttm/visualization/vis_mapper.py` with abstract methods (e.g., `map_to_voxels`, `get_voxel_layout`)
+- [ ] Develop Modular VisMapper Interface
+  - [ ] Define abstract VisMapper base class
+      - Condition: VisMapper class exists in `src/ttm/visualization/vis_mapper.py` with abstract methods (e.g., map_to_voxels, get_voxel_layout)
       - Answer: What abstract methods must subclasses implement? _____________
+        (e.g., map_to_voxels(), get_voxel_layout(), update_mapping(new_tensor))
+      - Terminal Validation: Run
+        `python -c "from src.ttm.visualization.vis_mapper import VisMapper; print(VisMapper.__abstractmethods__)"`
+        and verify that the set of abstract methods is correctly defined.
       - Git: Commit with `git commit -m "Define abstract VisMapper base class"`
-  - [ ] Implement `MatrixMapper` for 2D tensors
-      - Condition: `MatrixMapper` converts 2D tensors (e.g., memory, attention) into 3D voxel grid data (positions, colors)
+  - [ ] Implement MatrixMapper for 2D tensors
+      - Condition: MatrixMapper converts 2D tensors (e.g., memory, attention) into 3D voxel grid data (positions, colors)
       - Answer: How are matrix values mapped to voxel colors/intensities? _____________
+        (e.g., by linearly mapping scalar values to a colormap, then assigning colors and opacity based on that mapping)
+      - Terminal Validation: Run a test script that feeds a sample 2D tensor to MatrixMapper and prints a summary of the resulting voxel grid; verify the output in the terminal.
       - Git: Commit with `git commit -m "Implement MatrixMapper for 2D tensors"`
-  - [ ] Implement `VectorMapper` for 1D tensors
-      - Condition: `VectorMapper` converts 1D tensors (e.g., embeddings) into 3D voxel representation (e.g., bar chart)
+  - [ ] Implement VectorMapper for 1D tensors
+      - Condition: VectorMapper converts 1D tensors (e.g., embeddings) into 3D voxel representation (e.g., a bar chart)
       - Answer: How are vector elements positioned in 3D space? _____________
+        (e.g., elements are arranged along one axis with uniform spacing; height or color represents the value)
+      - Terminal Validation: Run a test that converts a sample 1D tensor to a voxel representation and prints the voxel coordinates and attributes; verify the output in the terminal.
       - Git: Commit with `git commit -m "Implement VectorMapper for 1D tensors"`
-  - [ ] Implement `GraphMapper` for computational graph (optional, based on hook data)
-      - Condition: `GraphMapper` visualizes connections between captured states/modules in 3D space
+  - [ ] Implement GraphMapper for computational graph (optional)
+      - Condition: GraphMapper visualizes connections between captured states/modules in 3D space
       - Answer: How are graph nodes and edges represented visually? _____________
+        (e.g., nodes are shown as spheres or cubes with labels; edges as lines or curves connecting nodes)
+      - Terminal Validation: Run a simple test script that creates a dummy computational graph and prints a summary of node and edge placements or generates a minimal image file for inspection.
       - Git: Commit with `git commit -m "Implement basic GraphMapper"`
-  - [ ] Create `MapperRegistry` for automatic mapper selection
-      - Condition: `MapperRegistry` selects the appropriate `VisMapper` based on tensor shape/type or state metadata
+  - [ ] Create MapperRegistry for automatic mapper selection
+      - Condition: MapperRegistry selects the appropriate VisMapper based on tensor shape/type or state metadata
       - Answer: What logic determines the best mapper for a given state? _____________
+        (e.g., if tensor.ndim == 2 then use MatrixMapper; if ndim == 1 then use VectorMapper; if metadata indicates a graph then use GraphMapper)
+      - Terminal Validation: Run a test script that passes different sample states to the MapperRegistry and prints which mapper is selected for each; verify the output in the terminal.
       - Git: Commit with `git commit -m "Implement MapperRegistry for automatic selection"`
 
-- [ ] **Implement High-Performance Pyglet/OpenGL Rendering Engine**
-  - [ ] Set up Pyglet window with OpenGL context and true black background
-      - Condition: `visualization_engine.py` creates a window with RGB (0,0,0) background and initializes OpenGL
-      - Answer: What OpenGL version is targeted for compatibility? _____________
-      - Git: Commit with `git commit -m "Setup Pyglet/OpenGL window with black background"`
+- [ ] Implement High-Performance Pyglet/OpenGL Rendering Engine
+  - [x] Set up Pyglet window with OpenGL context and true black background
+      - Condition: visualization_engine.py creates a window with background color RGB (0,0,0) and initializes the OpenGL context
+      - Answer: What OpenGL version is targeted for compatibility? OpenGL 3.3+ Core Profile is recommended for needed features and compatibility.
+      - Terminal Validation: Run
+        `python -m src.ttm.visualization.visualization_engine`
+        and visually confirm that the window appears with a true black background; check terminal output for no initialization errors.
+      - Git: Commit with `git commit -m "Phase 11.5: Setup Pyglet/OpenGL window (update README)"`
   - [ ] Develop vertex/fragment shaders for instanced voxel rendering
-      - Condition: GLSL shaders exist (`voxel.vert`, `voxel.frag`) capable of rendering millions of cubes efficiently
+      - Condition: GLSL shaders exist (voxel.vert and voxel.frag) that compile without errors and can render voxels based on per-instance data for position, color, and scale
       - Answer: How do shaders handle voxel position, color, and scaling based on data? _____________
+        (e.g., the vertex shader retrieves per-instance attributes from a VBO and applies model-view-projection transformations; the fragment shader samples a 1D colormap to determine final color)
+      - Terminal Validation: Run the visualization engine and use an OpenGL diagnostic tool (or check shader compilation logs in the terminal) to verify that shaders compile correctly.
       - Git: Commit with `git commit -m "Implement shaders for instanced voxel rendering"`
   - [ ] Implement dynamic VBO management for efficient updates
-      - Condition: Rendering engine uses dynamic VBOs (e.g., `glBufferSubData`) to update only changed voxel data
+      - Condition: The rendering engine uses dynamic VBOs (e.g., glBufferSubData) to update only portions of voxel data that have changed
       - Answer: What is the strategy for minimizing GPU data transfer? _____________
+        (e.g., only updating modified segments of the VBO; using persistent buffer mapping; batching voxel updates per frame)
+      - Terminal Validation: Insert log messages in the VBO update code, run a test frame, and verify in the terminal that update statistics show only modified data is transferred.
       - Git: Commit with `git commit -m "Implement dynamic VBO management"`
-  - [ ] Integrate `VisMapper` output with rendering engine
-      - Condition: Engine takes voxel data from mappers and renders it using instanced drawing calls
+  - [ ] Integrate VisMapper output with rendering engine
+      - Condition: The engine takes voxel grid data (positions, colors, scales) from the VisMapper and renders it using instanced drawing calls
       - Answer: How is data passed from mappers to shaders? _____________
+        (e.g., voxel data is loaded into a VBO; vertex attribute pointers are set up; instanced rendering is used via glDrawArraysInstanced)
+      - Terminal Validation: Run a test that prints a summary of voxel data sent to the GPU and visually confirm via rendered output that data changes are reflected on screen.
       - Git: Commit with `git commit -m "Integrate VisMapper output with renderer"`
 
-- [ ] **Develop Unified Single-Canvas Interactive Dashboard**
-  - [ ] Design single-canvas layout in `VisualizationEngine`
-      - Condition: Engine manages viewports or layout for displaying multiple visualizations (memory, attention, graph, controls) simultaneously
+- [ ] Develop Unified Single-Canvas Interactive Dashboard
+  - [ ] Design single-canvas layout in VisualizationEngine
+      - Condition: The engine manages a fixed-layout view showing multiple visualizations (memory, attention, parameter distributions, state timeline, etc.) on one screen
       - Answer: How is the layout structured (e.g., grid, docking)? _____________
+        (e.g., a 3x3 grid where each panel has fixed dimensions and margins)
+      - Terminal Validation: Run the dashboard and visually verify that all panels are visible simultaneously without scrolling; note the layout printed in the terminal log.
       - Git: Commit with `git commit -m "Design single-canvas layout"`
   - [ ] Implement 3D camera controls (pan, zoom, rotate)
-      - Condition: User can navigate the 3D visualization space using mouse/keyboard
+      - Condition: The dashboard supports interactive navigation of the 3D scene using mouse and keyboard inputs
       - Answer: What library or custom code is used for camera controls? _____________
+        (e.g., a custom arcball camera controller or integration with pyglet's built-in camera controls)
+      - Terminal Validation: Run the dashboard, interact with the camera (pan, zoom, rotate), and verify via printed camera parameter updates in the terminal or on-screen overlays.
       - Git: Commit with `git commit -m "Implement 3D camera controls"`
   - [ ] Implement voxel hovering/selection for tooltips
-      - Condition: Hovering over a voxel displays its corresponding value/metadata; clicking selects it
+      - Condition: Hovering over a voxel displays its value/metadata in a tooltip; clicking a voxel highlights it
       - Answer: How is picking implemented (e.g., color picking, ray casting)? _____________
+        (e.g., using ray casting from the camera through mouse coordinates into the 3D space with intersection tests)
+      - Terminal Validation: Run the dashboard, hover over voxels, and verify that tooltips display correct metadata; check the terminal log for debug output confirming selections.
       - Git: Commit with `git commit -m "Implement voxel hovering and selection"`
   - [ ] Implement interactive state editing interface
-      - Condition: Clicking a voxel allows modifying its value, which updates the `TTMStateTracker`
+      - Condition: Clicking a voxel opens an editing interface that allows modification of its value; changes propagate to the TTMStateTracker
       - Answer: How are state changes propagated back to the simulation/model? _____________
+        (e.g., through a callback that updates the in-memory state and triggers a refresh of subsequent computations)
+      - Terminal Validation: Run the dashboard, click a voxel to edit its value, and verify via terminal logs or a displayed message that the state is updated and the change affects subsequent steps.
       - Git: Commit with `git commit -m "Implement interactive state editing"`
   - [ ] Implement state timeline/playback controls
-      - Condition: UI includes controls (slider, buttons) to navigate through captured states from `TTMStateTracker`
+      - Condition: The UI includes a timeline slider and play/pause buttons that allow navigation through captured state history; visualizations update accordingly
       - Answer: How is the visualization updated during playback? _____________
+        (e.g., by reloading the corresponding state snapshot from TTMStateTracker and refreshing each panel in real time)
+      - Terminal Validation: Run the dashboard, move the timeline slider, and confirm through terminal logs and on-screen display that the state changes as expected.
       - Git: Commit with `git commit -m "Implement state timeline and playback controls"`
   - [ ] Implement real-time performance monitoring and adaptive rendering
-      - Condition: Dashboard displays FPS; engine adjusts rendering detail (e.g., voxel count) to maintain target FPS
+      - Condition: The dashboard displays live FPS and performance metrics; if FPS drops below the target, the engine reduces rendering detail (such as voxel count) automatically
       - Answer: What is the target FPS and how is detail adjusted? _____________
+        (e.g., target of 60 FPS; if FPS falls below 60, the engine dynamically down-samples voxel data or decreases shader sample count)
+      - Terminal Validation: Run the dashboard under load, observe the FPS readout in the terminal or on-screen overlay, and verify via debug logs that adaptive rendering triggers when FPS falls below the target.
       - Git: Commit with `git commit -m "Implement performance monitoring and adaptive rendering"`
 
-- [ ] **Integration and Testing**
-  - [ ] Integrate `TTMStateTracker` data feed into `VisualizationEngine`
-      - Condition: Engine receives state updates from the tracker and triggers appropriate `VisMapper` updates
+- [ ] Develop Dear ImGui-Based Interactive UI
+  - [ ] Integrate Dear ImGui into the rendering engine
+      - Condition: The UI uses Dear ImGui for on-screen interactivity and controls in place of or in combination with previous UI frameworks
+      - Answer: Which Dear ImGui library (e.g., pyimgui for Python or C++ Dear ImGui) is used, and how is it integrated with the OpenGL context? _____________
+      - Terminal Validation: Run `python -c "import imgui; print(imgui.get_version())"` (or the equivalent in your environment) and verify the version is printed.
+      - Git: Commit with `git commit -m "Integrate Dear ImGui for interactive UI"`
+  - [ ] Recreate the UI layout to match the screenshot
+      - Condition: The UI layout displays a single full-screen window with dockable panels arranged as in the provided screenshot (all panels visible with no scrolling)
+      - Answer: How are panels arranged to match the screenshot? _____________
+        (e.g., using ImGui docking to create a grid of panels with fixed sizes and margins)
+      - Terminal Validation: Run the application and visually verify that the layout matches the screenshot with all panels visible; check any debug logs confirming the layout.
+      - Git: Commit with `git commit -m "Implement UI layout using Dear ImGui to match provided screenshot"`
+  - [ ] Replace previous system with new real-time interactive UI components
+      - Condition: The UI includes controls to edit hyperparameters, inspect and modify internal states, and view real-time visualizations all on one canvas
+      - Answer: How are modifications to states and hyperparameters propagated to the model simulation? _____________
+        (e.g., through ImGui callback functions that update global state objects and trigger reprocessing)
+      - Terminal Validation: Run the application, modify a parameter or state via the UI, and observe console output confirming the change has been applied.
+      - Git: Commit with `git commit -m "Implement real-time interactive state editing controls using Dear ImGui"`
+  - [ ] Ensure that performance remains above target FPS (e.g., 60 FPS) while maintaining full functionality
+      - Condition: Adaptive rendering mechanisms adjust detail (e.g., voxel count, shader sample rate) to maintain performance
+      - Answer: What is the measured FPS and how are rendering details adjusted when performance drops? _____________
+        (e.g., target 60 FPS; if measured FPS < 60, engine reduces voxel detail by 50% incrementally until performance stabilizes)
+      - Terminal Validation: Run the dashboard under load, monitor the FPS counter in the UI, and verify via log output that adaptive measures trigger when needed.
+      - Git: Commit with `git commit -m "Implement adaptive rendering controls in Dear ImGui UI to maintain 60 FPS"`
+
+- [ ] Integration and Testing
+  - [ ] Integrate TTMStateTracker data feed into VisualizationEngine
+      - Condition: The engine receives live state updates from TTMStateTracker and updates the visualizations accordingly
       - Answer: How is data transferred between tracker and engine (e.g., queue, callback)? _____________
+        (e.g., using a thread-safe queue that the engine polls periodically)
+      - Terminal Validation: Run a training session with visualization enabled and check terminal logs that indicate successful state transfer.
       - Git: Commit with `git commit -m "Integrate state tracker data feed"`
   - [ ] Test visualization with live training data
-      - Condition: Dashboard displays updating visualizations during a TTM training run
+      - Condition: Dashboard panels (memory, attention, parameters, graph) update in real time during training
       - Answer: What is the observed impact on training speed? _____________
+        (e.g., minimal overhead as verified by comparing training throughput with and without visualization)
+      - Terminal Validation: Run a training session with the dashboard enabled and measure training iterations per second via terminal logs.
       - Git: Commit with `git commit -m "Test visualization with live training data"`
   - [ ] Test interactive editing and state replay
-      - Condition: Modifying a state via the dashboard and resuming/replaying shows expected changes
+      - Condition: Modifying a state via the dashboard and then replaying from that state produces the expected modified outputs
       - Answer: Provide an example of a tested modification and its effect: _____________
+      - Terminal Validation: Edit a voxel value in the dashboard, replay the timeline, and verify via console logs that subsequent outputs reflect the modification.
       - Git: Commit with `git commit -m "Test interactive editing and replay"`
   - [ ] Test scalability with large models/long sequences
-      - Condition: Engine maintains target FPS while visualizing states from complex scenarios
+      - Condition: The engine maintains target FPS (e.g., 60+ FPS) while visualizing states from complex scenarios
       - Answer: What are the performance bottlenecks observed? _____________
+      - Terminal Validation: Run stress tests simulating large state data and verify via performance logs or external profiling that FPS stays above target.
       - Git: Commit with `git commit -m "Test visualization scalability"`
   - [ ] Create comprehensive demonstration script
-      - Condition: `run_visualization_demo.py` showcases all features using the trained TTM model
+      - Condition: A script named `run_visualization_demo.py` exists that loads a trained TTM model, performs sample inference, and displays the complete dashboard with all panels
       - Answer: What key insights does the demo highlight? _____________
-      - Git: Commit with `git commit -m "Create visualization demo script"`
-      - Git: Push branch with `git push origin feature/3d-visualization`
-      - Git: Create pull request for review
-      - Git: After review, merge with `git checkout main && git merge feature/3d-visualization`
-      - Git: Push to main with `git push origin main`
+      - Terminal Validation: Run `python run_visualization_demo.py` and verify that all dashboard panels are populated and terminal output confirms demo actions.
+      - Git:
+          - Commit with `git commit -m "Create visualization demo script"`
+          - Push branch with `git push origin feature/3d-visualization`
+          - Create pull request for review
+          - After review, merge with `git checkout main && git merge feature/3d-visualization`
+          - Push to main with `git push origin main`
+────────────────────────────────────────────
 
 ### Phase 12: Testing and Evaluation
 
