@@ -647,10 +647,9 @@ Update the README list by marking each item as complete only after meeting its s
         `python -c "from src.ttm.visualization.vis_mapper import VisMapper; print(VisMapper.__abstractmethods__)"`
         and verify that the set of abstract methods is correctly defined.
       - Git: Commit with `git commit -m "Define abstract VisMapper base class"`
-  - [ ] Implement MatrixMapper for 2D tensors
+  - [x] Implement MatrixMapper for 2D tensors
       - Condition: MatrixMapper converts 2D tensors (e.g., memory, attention) into 3D voxel grid data (positions, colors)
-      - Answer: How are matrix values mapped to voxel colors/intensities? _____________
-        (e.g., by linearly mapping scalar values to a colormap, then assigning colors and opacity based on that mapping)
+      - Answer: How are matrix values mapped to voxel colors/intensities? Matrix values are first normalized to the range [0, 1] by computing (value - min_value) / (max_value - min_value). These normalized values are then used as intensities in the voxel grid. For 2D matrices, the values are mapped to a 2D plane in the 3D voxel grid (with z=0), preserving the spatial relationships in the original matrix.
       - Terminal Validation: Run a test script that feeds a sample 2D tensor to MatrixMapper and prints a summary of the resulting voxel grid; verify the output in the terminal.
       - Git: Commit with `git commit -m "Implement MatrixMapper for 2D tensors"`
   - [ ] Implement VectorMapper for 1D tensors
