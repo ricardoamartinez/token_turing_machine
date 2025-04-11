@@ -1,0 +1,164 @@
+#version 430 core
+
+// Compute shader for generating voxels from model data
+
+// Input data buffer (model tensor data)
+layout(std430, binding = 0) buffer InputBuffer {
+    float data[];
+};
+
+// Output voxel buffer
+layout(std430, binding = 1) buffer VoxelBuffer {
+    // Each voxel has position (3), scale (3), color (4), and value (1)
+    vec3 positions[];
+    vec3 scales[];
+    vec4 colors[];
+    float values[];
+};
+
+// Uniforms
+uniform ivec3 inputDimensions;  // Dimensions of the input tensor
+uniform ivec3 outputDimensions; // Dimensions of the output voxel grid
+uniform int maxVoxels;          // Maximum number of voxels to generate
+uniform int colormap;           // Colormap to use (0=viridis, 1=plasma, 2=inferno)
+
+// Atomic counter for the number of voxels generated
+layout(binding = 0) uniform atomic_uint voxelCount;
+
+// Local work group size
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+// Helper function to get 1D index from 3D coordinates
+int getIndex(ivec3 coords, ivec3 dimensions) {
+    return coords.x + coords.y * dimensions.x + coords.z * dimensions.x * dimensions.y;
+}
+
+// Helper function to get data value from input buffer
+float getData(ivec3 coords) {
+    // Check if coordinates are within bounds
+    if (coords.x >= inputDimensions.x || coords.y >= inputDimensions.y || coords.z >= inputDimensions.z ||
+        coords.x < 0 || coords.y < 0 || coords.z < 0) {
+        return 0.0;
+    }
+    
+    // Get index in the input buffer
+    int index = getIndex(coords, inputDimensions);
+    
+    // Check if index is within bounds
+    if (index >= data.length()) {
+        return 0.0;
+    }
+    
+    return data[index];
+}
+
+// Helper function to get color from colormap
+vec4 getColor(float value, int colormap) {
+    // Ensure value is in [0, 1]
+    value = clamp(value, 0.0, 1.0);
+    
+    vec4 color;
+    
+    if (colormap == 0) {
+        // Viridis colormap
+        if (value < 0.25) {
+            // Dark purple to teal
+            float t = value * 4.0;
+            color = vec4(0.2, 0.0 + t * 0.3, 0.3 + t * 0.3, 1.0);
+        } else if (value < 0.5) {
+            // Teal to green
+            float t = (value - 0.25) * 4.0;
+            color = vec4(0.2 + t * 0.2, 0.3 + t * 0.3, 0.6 - t * 0.2, 1.0);
+        } else if (value < 0.75) {
+            // Green to yellow
+            float t = (value - 0.5) * 4.0;
+            color = vec4(0.4 + t * 0.6, 0.6 + t * 0.4, 0.4 - t * 0.4, 1.0);
+        } else {
+            // Yellow to yellow
+            float t = (value - 0.75) * 4.0;
+            color = vec4(1.0, 1.0, 0.0 + t, 1.0);
+        }
+    } else if (colormap == 1) {
+        // Plasma colormap
+        if (value < 0.25) {
+            // Dark blue to blue
+            float t = value * 4.0;
+            color = vec4(0.0, t * 0.5, 0.5 + t * 0.5, 1.0);
+        } else if (value < 0.5) {
+            // Blue to green
+            float t = (value - 0.25) * 4.0;
+            color = vec4(0.0, 0.5 + t * 0.5, 1.0, 1.0);
+        } else if (value < 0.75) {
+            // Green to yellow
+            float t = (value - 0.5) * 4.0;
+            color = vec4(t, 1.0, 1.0 - t, 1.0);
+        } else {
+            // Yellow to red
+            float t = (value - 0.75) * 4.0;
+            color = vec4(1.0, 1.0 - t, 0.0, 1.0);
+        }
+    } else if (colormap == 2) {
+        // Inferno colormap
+        if (value < 0.25) {
+            // Black to purple
+            float t = value * 4.0;
+            color = vec4(t * 0.5, 0.0, t, 1.0);
+        } else if (value < 0.5) {
+            // Purple to red
+            float t = (value - 0.25) * 4.0;
+            color = vec4(0.5 + t * 0.5, 0.0, 1.0 - t * 0.5, 1.0);
+        } else if (value < 0.75) {
+            // Red to orange
+            float t = (value - 0.5) * 4.0;
+            color = vec4(1.0, t * 0.5, 0.0, 1.0);
+        } else {
+            // Orange to yellow
+            float t = (value - 0.75) * 4.0;
+            color = vec4(1.0, 0.5 + t * 0.5, t, 1.0);
+        }
+    } else {
+        // Default to grayscale
+        color = vec4(value, value, value, 1.0);
+    }
+    
+    return color;
+}
+
+void main() {
+    // Get global invocation ID
+    ivec3 coords = ivec3(gl_GlobalInvocationID.xyz);
+    
+    // Check if coordinates are within bounds
+    if (coords.x >= outputDimensions.x || coords.y >= outputDimensions.y || coords.z >= outputDimensions.z) {
+        return;
+    }
+    
+    // Get data value
+    float value = getData(coords);
+    
+    // Skip voxels with zero or very small values
+    if (value <= 0.01) {
+        return;
+    }
+    
+    // Get current voxel count and increment
+    uint index = atomicCounterIncrement(voxelCount);
+    
+    // Check if we've reached the maximum number of voxels
+    if (index >= maxVoxels) {
+        return;
+    }
+    
+    // Calculate position in normalized coordinates [-1, 1]
+    vec3 position = vec3(
+        (float(coords.x) / float(outputDimensions.x - 1)) * 2.0 - 1.0,
+        (float(coords.y) / float(outputDimensions.y - 1)) * 2.0 - 1.0,
+        (float(coords.z) / float(outputDimensions.z - 1)) * 2.0 - 1.0
+    );
+    
+    // Set voxel data
+    positions[index] = position;
+    scales[index] = vec3(0.05, 0.05, 0.05);  // Fixed scale for now
+    colors[index] = getColor(value, colormap);
+    values[index] = value;
+}

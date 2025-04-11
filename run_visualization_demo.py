@@ -15,10 +15,19 @@ import argparse
 import imgui
 import glfw
 import OpenGL.GL as gl
+import torch
 from imgui.integrations.glfw import GlfwRenderer
+
+# Check if CUDA is available
+CUDA_AVAILABLE = torch.cuda.is_available()
+print(f"CUDA available: {CUDA_AVAILABLE}")
 
 # Import TTM visualization components
 from src.ttm.visualization.voxel_renderer import VoxelRenderer
+from src.ttm.visualization.cuda_voxel_renderer import CudaVoxelRenderer
+from src.ttm.visualization.model_data_extractor import ModelDataExtractor
+from src.ttm.visualization.computational_graph_extractor import ComputationalGraphExtractor
+from src.ttm.visualization.graph_renderer import GraphRenderer
 from src.ttm.visualization.vis_mapper import (
     TensorToVoxelMapper,
     MemoryToVoxelMapper,
@@ -744,6 +753,210 @@ class StateInspectorPanel(Panel):
             imgui.text("No state data available yet.")
 
 
+class ComputationalGraphPanel(Panel):
+    """Panel for visualizing the computational graph of models."""
+
+    def __init__(self, title, engine, color=(0.3, 0.6, 0.8, 1.0)):
+        """Initialize the computational graph panel.
+
+        Args:
+            title: Panel title
+            engine: Visualization engine
+            color: Panel color
+        """
+        super().__init__(title, engine, color)
+
+        # Initialize graph extractor
+        self.graph_extractor = ComputationalGraphExtractor()
+
+        # Initialize graph renderer
+        try:
+            self.graph_renderer = GraphRenderer(max_nodes=1000, max_edges=2000)
+            print("Successfully initialized GraphRenderer")
+        except Exception as e:
+            print(f"Failed to initialize GraphRenderer: {e}")
+            self.graph_renderer = None
+
+        # Graph data
+        self.graph_data = None
+
+        # Camera controls
+        self.camera_rotation_x = 0.0
+        self.camera_rotation_y = 0.0
+        self.camera_distance = 5.0
+
+        # Model selection
+        self.current_model_type = 0  # 0 = TTM, 1 = Vanilla Transformer
+        self.model_types = ["TTM", "Vanilla Transformer"]
+
+        # Extract graph on initialization
+        self.extract_graph()
+
+    def extract_graph(self):
+        """Extract the computational graph from the current model."""
+        try:
+            # Get the appropriate model based on selection
+            if self.current_model_type == 0:
+                # TTM model
+                model = self.engine.model
+            else:
+                # Vanilla Transformer model (create a simple one for demo)
+                model = torch.nn.Transformer(d_model=512, nhead=8, num_encoder_layers=6)
+
+            # Extract graph
+            self.graph_extractor.extract_graph(model)
+
+            # Get graph data for visualization
+            self.graph_data = self.graph_extractor.get_graph_data()
+
+            # Update graph renderer
+            if self.graph_renderer is not None:
+                self.graph_renderer.update_graph(self.graph_data)
+
+            print(f"Extracted computational graph with {len(self.graph_data['nodes'])} nodes and {len(self.graph_data['edges'])} edges")
+        except Exception as e:
+            print(f"Error extracting computational graph: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def get_view_matrix(self):
+        """Get the view matrix for the 3D graph visualization."""
+        # Calculate camera position based on rotation and distance
+        camera_x = self.camera_distance * np.sin(self.camera_rotation_y) * np.cos(self.camera_rotation_x)
+        camera_y = self.camera_distance * np.sin(self.camera_rotation_x)
+        camera_z = self.camera_distance * np.cos(self.camera_rotation_y) * np.cos(self.camera_rotation_x)
+
+        # Create view matrix
+        view_matrix = np.identity(4, dtype=np.float32)
+
+        # Set camera position
+        view_matrix[0, 3] = -camera_x
+        view_matrix[1, 3] = -camera_y
+        view_matrix[2, 3] = -camera_z
+
+        # Set camera orientation
+        forward = np.array([camera_x, camera_y, camera_z])
+        forward = forward / np.linalg.norm(forward)
+
+        up = np.array([0.0, 1.0, 0.0])
+        right = np.cross(up, forward)
+        right = right / np.linalg.norm(right)
+
+        up = np.cross(forward, right)
+
+        view_matrix[0, 0] = right[0]
+        view_matrix[0, 1] = right[1]
+        view_matrix[0, 2] = right[2]
+
+        view_matrix[1, 0] = up[0]
+        view_matrix[1, 1] = up[1]
+        view_matrix[1, 2] = up[2]
+
+        view_matrix[2, 0] = forward[0]
+        view_matrix[2, 1] = forward[1]
+        view_matrix[2, 2] = forward[2]
+
+        return view_matrix
+
+    def render_content(self):
+        """Render the panel content."""
+        # Use a color that matches the panel title but is brighter
+        r, g, b, a = self.color
+        imgui.text_colored("Computational graph visualization",
+                         min(r + 0.5, 1.0), min(g + 0.5, 1.0), min(b + 0.5, 1.0), 1.0)
+        imgui.separator()
+
+        # Model selection
+        imgui.text("Model Type:")
+        changed, value = imgui.combo(
+            "##model_type",
+            self.current_model_type,
+            self.model_types
+        )
+        if changed:
+            self.current_model_type = value
+            # Extract graph for the new model
+            self.extract_graph()
+
+        # Graph statistics
+        if self.graph_data is not None:
+            imgui.text(f"Nodes: {len(self.graph_data['nodes'])}")
+            imgui.text(f"Edges: {len(self.graph_data['edges'])}")
+            imgui.text(f"Node types: {len(self.graph_data['node_types'])}")
+
+        # 3D rendering area
+        imgui.separator()
+        available_size = imgui.get_content_region_available()
+        size_x = available_size[0] - 20  # Padding
+        size_y = available_size[1] - 100  # Padding
+
+        # Create a child window for 3D rendering
+        imgui.begin_child("3D_Graph_Area", size_x, size_y, False, imgui.WINDOW_NO_SCROLLBAR)
+
+        # Get the position and size of the child window
+        render_pos = imgui.get_cursor_screen_pos()
+        render_size = imgui.get_content_region_available()
+
+        # Set up viewport for 3D rendering
+        try:
+            gl.glViewport(int(render_pos[0]), int(self.engine.window_height - render_pos[1] - render_size[1]),
+                         int(render_size[0]), int(render_size[1]))
+
+            # Clear the depth buffer
+            gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
+        except Exception as e:
+            print(f"OpenGL error in viewport setup: {e}")
+
+        # Handle mouse input for camera rotation
+        if imgui.is_window_hovered() and imgui.is_mouse_dragging(0):
+            dx, dy = imgui.get_mouse_drag_delta(0)
+            imgui.reset_mouse_drag_delta(0)
+
+            # Update camera rotation
+            self.camera_rotation_y += dx * 0.01
+            self.camera_rotation_x += dy * 0.01
+
+            # Clamp vertical rotation
+            self.camera_rotation_x = max(-np.pi / 2.0 + 0.1, min(np.pi / 2.0 - 0.1, self.camera_rotation_x))
+
+        # Handle mouse wheel for zoom
+        if imgui.is_window_hovered() and imgui.get_io().mouse_wheel != 0:
+            # Update camera distance
+            self.camera_distance -= imgui.get_io().mouse_wheel * 0.5
+            self.camera_distance = max(2.0, min(20.0, self.camera_distance))
+
+        # Render the graph
+        if self.graph_renderer is not None and self.graph_data is not None:
+            # Create matrices
+            model_matrix = np.identity(4, dtype=np.float32)
+            view_matrix = self.get_view_matrix()
+
+            # Create perspective projection matrix
+            aspect_ratio = render_size[0] / max(1, render_size[1])
+            fov = 45.0 * np.pi / 180.0
+            near_plane = 0.1
+            far_plane = 100.0
+
+            projection_matrix = np.zeros((4, 4), dtype=np.float32)
+            f = 1.0 / np.tan(fov / 2.0)
+            projection_matrix[0, 0] = f / aspect_ratio
+            projection_matrix[1, 1] = f
+            projection_matrix[2, 2] = (far_plane + near_plane) / (near_plane - far_plane)
+            projection_matrix[2, 3] = (2.0 * far_plane * near_plane) / (near_plane - far_plane)
+            projection_matrix[3, 2] = -1.0
+
+            # Render the graph
+            self.graph_renderer.render(model_matrix, view_matrix, projection_matrix, 0.016)  # Assuming 60 FPS
+
+        imgui.end_child()
+
+        # Controls
+        imgui.separator()
+        imgui.text("Controls:")
+        imgui.text("Drag with left mouse button to rotate the view")
+        imgui.text("Use mouse wheel to zoom in/out")
+
+
 class PerformanceMonitorPanel(Panel):
     """Panel for monitoring performance metrics."""
 
@@ -824,6 +1037,7 @@ class VisualizationEngine:
             window_height: Window height
         """
         self.state_tracker = state_tracker
+        self.model = state_tracker.model  # Store reference to the model
         self.window_width = window_width
         self.window_height = window_height
         self.current_step = 0
@@ -852,6 +1066,8 @@ class VisualizationEngine:
             TimelinePanel("Sequence Timeline", self, color=(0.1, 0.5, 0.3, 1.0)),
             # Purple for state inspector
             StateInspectorPanel("Model State Inspector", self, color=(0.4, 0.2, 0.6, 1.0)),
+            # Teal for computational graph
+            ComputationalGraphPanel("Computational Graph", self, color=(0.1, 0.5, 0.5, 1.0)),
             # Orange for performance monitor
             PerformanceMonitorPanel("Performance Monitor", self, color=(0.6, 0.4, 0.1, 1.0))
         ]
@@ -881,9 +1097,13 @@ class VisualizationEngine:
 
         # Initialize voxel renderer
         try:
-            # Try to initialize the real VoxelRenderer
-            self.voxel_renderer = VoxelRenderer(max_voxels=10000)
-            print("Successfully initialized VoxelRenderer with OpenGL")
+            # Try to initialize the voxel renderer - use CUDA if available
+            if CUDA_AVAILABLE:
+                self.voxel_renderer = CudaVoxelRenderer(max_voxels=10000)
+                print("Successfully initialized CudaVoxelRenderer with CUDA-OpenGL interop")
+            else:
+                self.voxel_renderer = VoxelRenderer(max_voxels=10000)
+                print("Successfully initialized VoxelRenderer with OpenGL")
         except Exception as e:
             # Fall back to mock renderer if OpenGL initialization fails
             print(f"Failed to initialize VoxelRenderer with OpenGL: {e}")
@@ -1082,6 +1302,23 @@ class VisualizationEngine:
         voxels = voxel_data['voxels']
         dimensions = voxel_data['dimensions']
         colormap = voxel_data['metadata'].get('color_map', 'viridis')
+
+        # Check if we have a tensor
+        if 'tensor' in voxel_data:
+            tensor = voxel_data['tensor']
+            # If we have a CUDA-enabled renderer and a CUDA tensor, use direct update
+            if CUDA_AVAILABLE and isinstance(self.voxel_renderer, CudaVoxelRenderer) and isinstance(tensor, torch.Tensor):
+                if tensor.is_cuda:
+                    # Direct update from CUDA tensor
+                    self.voxel_renderer.update_from_tensor(tensor, dimensions, colormap)
+                    print(f"Updated voxels directly from CUDA tensor with shape {tensor.shape}")
+                    return
+                else:
+                    # Move tensor to CUDA and update
+                    cuda_tensor = tensor.cuda()
+                    self.voxel_renderer.update_from_tensor(cuda_tensor, dimensions, colormap)
+                    print(f"Updated voxels from CPU tensor moved to CUDA with shape {tensor.shape}")
+                    return
 
         # Set up voxels
         print(f"Setting up voxels with dimensions {dimensions} using {colormap} colormap...")
