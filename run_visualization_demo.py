@@ -17,6 +17,84 @@ import glfw
 import OpenGL.GL as gl
 from imgui.integrations.glfw import GlfwRenderer
 
+# Import TTM visualization components
+from src.ttm.visualization.voxel_renderer import VoxelRenderer
+from src.ttm.visualization.vis_mapper import (
+    TensorToVoxelMapper,
+    MemoryToVoxelMapper,
+    AttentionToVoxelMapper
+)
+
+# Fallback mock voxel renderer in case OpenGL initialization fails
+class MockVoxelRenderer:
+    """Mock voxel renderer for demonstration."""
+
+    def __init__(self, max_voxels=10000):
+        """Initialize the mock voxel renderer.
+
+        Args:
+            max_voxels: Maximum number of voxels
+        """
+        self.max_voxels = max_voxels
+        self.voxels = {}
+        self.num_active_voxels = 0
+        self.modified_voxels = set()
+
+    def set_voxel(self, index, position, scale, color, value):
+        """Set a voxel.
+
+        Args:
+            index: Voxel index
+            position: Voxel position (x, y, z)
+            scale: Voxel scale (x, y, z)
+            color: Voxel color (r, g, b, a)
+            value: Voxel value
+        """
+        self.voxels[index] = {
+            'position': position,
+            'scale': scale,
+            'color': color,
+            'value': value
+        }
+        self.num_active_voxels = max(self.num_active_voxels, index + 1)
+        self.modified_voxels.add(index)
+
+    def get_voxel_data(self, index):
+        """Get voxel data.
+
+        Args:
+            index: Voxel index
+
+        Returns:
+            Voxel data
+        """
+        return self.voxels.get(index)
+
+    def update_buffers(self):
+        """Update voxel buffers."""
+        print(f"Updating {len(self.modified_voxels)} voxels")
+        self.modified_voxels.clear()
+
+    def render(self, model_matrix, view_matrix, projection_matrix):
+        """Render voxels.
+
+        Args:
+            model_matrix: Model matrix
+            view_matrix: View matrix
+            projection_matrix: Projection matrix
+        """
+        # In a real implementation, this would render the voxels using OpenGL
+        # For this mock implementation, we just print the number of active voxels
+        print(f"Rendering {self.num_active_voxels} voxels")
+
+    def cleanup(self):
+        """Clean up resources."""
+        # In a real implementation, this would clean up OpenGL resources
+        # For this mock implementation, we just clear the voxels dictionary
+        self.voxels.clear()
+        self.num_active_voxels = 0
+        self.modified_voxels.clear()
+
 # Performance monitoring
 class PerformanceMonitor:
     """Class to monitor and manage performance."""
@@ -373,6 +451,366 @@ class MockTTMModel:
         return generated
 
 
+# Panel base class
+class Panel:
+    """Base class for all visualization panels."""
+
+    def __init__(self, title, engine, color=(0.1, 0.2, 0.3, 1.0)):
+        """Initialize the panel.
+
+        Args:
+            title: Panel title
+            engine: Visualization engine
+            color: Panel title bar color (r, g, b, a)
+        """
+        self.title = title
+        self.engine = engine
+        self.visible = True
+        self.color = color
+
+    def render(self):
+        """Render the panel."""
+        if not self.visible:
+            return
+
+        # Set panel title colors
+        style = imgui.get_style()
+        original_active_color = style.colors[imgui.COLOR_TITLE_BACKGROUND_ACTIVE]
+        original_color = style.colors[imgui.COLOR_TITLE_BACKGROUND]
+
+        # Apply custom color for this panel
+        style.colors[imgui.COLOR_TITLE_BACKGROUND_ACTIVE] = self.color
+        # Make inactive color slightly darker
+        style.colors[imgui.COLOR_TITLE_BACKGROUND] = (
+            self.color[0] * 0.7,
+            self.color[1] * 0.7,
+            self.color[2] * 0.7,
+            self.color[3]
+        )
+
+        # Begin panel with consistent flags for all panels
+        imgui.begin(self.title, True, imgui.WINDOW_NO_COLLAPSE)
+        self.render_content()
+        imgui.end()
+
+        # Restore original colors
+        style.colors[imgui.COLOR_TITLE_BACKGROUND_ACTIVE] = original_active_color
+        style.colors[imgui.COLOR_TITLE_BACKGROUND] = original_color
+
+    def render_content(self):
+        """Render the panel content. To be overridden by subclasses."""
+        pass
+
+
+# Panel implementations
+class MemoryVisualizationPanel(Panel):
+    """Panel for 3D visualization of model memory."""
+
+    def render_content(self):
+        """Render the panel content."""
+        # Use a color that matches the panel title but is brighter
+        r, g, b, a = self.color
+        imgui.text_colored("Interactive 3D visualization of the model's memory state",
+                         min(r + 0.5, 1.0), min(g + 0.5, 1.0), min(b + 0.5, 1.0), 1.0)
+        imgui.separator()
+
+        # Get current state
+        state = self.engine.state_tracker.get_state(self.engine.current_step)
+
+        if state is not None:
+            # Display current state info
+            imgui.text(f"Step {self.engine.current_step}: Token {state['token']}")
+
+            # Get cursor position for 3D rendering
+            pos = imgui.get_cursor_screen_pos()
+
+            # Calculate size for 3D rendering
+            available_size = imgui.get_content_region_available()
+            size_x = available_size[0] - 20  # Padding
+            size_y = available_size[1] - 20  # Padding
+
+            # Create a child window for 3D rendering
+            imgui.begin_child("3D_Render_Area", size_x, size_y, False, imgui.WINDOW_NO_SCROLLBAR)
+
+            # Get the position and size of the child window
+            render_pos = imgui.get_cursor_screen_pos()
+            render_size = imgui.get_content_region_available()
+
+            # Set up viewport for 3D rendering
+            try:
+                gl.glViewport(int(render_pos[0]), int(self.engine.window_height - render_pos[1] - render_size[1]), int(render_size[0]), int(render_size[1]))
+
+                # Clear the depth buffer
+                gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
+            except Exception as e:
+                # Print error but continue if OpenGL calls fail
+                print(f"OpenGL error in viewport setup: {e}")
+                print(f"Render area: {render_pos[0]}, {render_pos[1]}, {render_size[0]}, {render_size[1]}")
+
+            # Update view matrix based on camera rotation
+            self.engine.view_matrix = self.engine.get_view_matrix()
+
+            # Render voxels
+            try:
+                self.engine.voxel_renderer.render(
+                    self.engine.model_matrix,
+                    self.engine.view_matrix,
+                    self.engine.projection_matrix
+                )
+            except Exception as e:
+                # Print error but continue if OpenGL calls fail
+                print(f"OpenGL error in voxel rendering: {e}")
+
+            imgui.end_child()
+
+            # Display memory information
+            if state is not None and 'memory' in state:
+                memory = state['memory'][0]
+                imgui.separator()
+                imgui.text(f"Memory shape: {memory.shape}")
+                imgui.text(f"Memory min: {np.min(memory):.4f}")
+                imgui.text(f"Memory max: {np.max(memory):.4f}")
+                imgui.text(f"Memory mean: {np.mean(memory):.4f}")
+
+                # Create memory mapper if not already done
+                if self.engine.selected_component != 'memory':
+                    memory_mapper = MemoryToVoxelMapper()
+                    memory_voxel_data = memory_mapper.map_to_voxels({
+                        'name': 'memory',
+                        'shape': memory.shape,
+                        'data': memory,
+                        'is_memory': True
+                    })
+
+                    # Set up memory voxels
+                    self.engine.setup_voxels(memory_voxel_data)
+                    self.engine.selected_component = 'memory'
+                    self.engine.action_log.append(f"Loaded memory visualization with shape {memory.shape}")
+
+
+class TimelinePanel(Panel):
+    """Panel for sequence timeline visualization."""
+
+    def render_content(self):
+        """Render the panel content."""
+        # Use a color that matches the panel title but is brighter
+        r, g, b, a = self.color
+        imgui.text_colored("Navigate through the model's execution steps",
+                         min(r + 0.5, 1.0), min(g + 0.5, 1.0), min(b + 0.5, 1.0), 1.0)
+        imgui.separator()
+
+        # Get current state
+        state = self.engine.state_tracker.get_state(self.engine.current_step)
+
+        if state is not None:
+            # Display timeline
+            total_steps = self.engine.state_tracker.current_step + 1
+            imgui.text(f"Step {self.engine.current_step + 1} of {total_steps}")
+
+            # Timeline slider
+            changed, value = imgui.slider_int("##timeline", self.engine.current_step, 0, total_steps - 1, f"{self.engine.current_step}")
+            if changed:
+                self.engine.current_step = value
+                self.engine.playing = False
+
+            # Playback controls
+            imgui.separator()
+            imgui.text("Playback Controls")
+
+            if imgui.button("Reset"):
+                self.engine.current_step = 0
+                self.engine.playing = False
+
+            imgui.same_line()
+            if self.engine.playing:
+                if imgui.button("Pause"):
+                    self.engine.playing = False
+            else:
+                if imgui.button("Play"):
+                    self.engine.playing = True
+
+            imgui.same_line()
+            if imgui.button("<<"):
+                self.engine.current_step = max(0, self.engine.current_step - 1)
+                self.engine.playing = False
+
+            imgui.same_line()
+            if imgui.button(">>"):
+                self.engine.current_step = min(self.engine.state_tracker.current_step, self.engine.current_step + 1)
+                self.engine.playing = False
+
+            # Play speed
+            imgui.separator()
+            imgui.text("Play Speed")
+            changed, value = imgui.slider_float("##play_speed", self.engine.play_speed, 0.1, 5.0, "%.1fx")
+            if changed:
+                self.engine.play_speed = value
+        else:
+            imgui.text("No state data available yet.")
+
+
+class StateInspectorPanel(Panel):
+    """Panel for inspecting model state details."""
+
+    def render_content(self):
+        """Render the panel content."""
+        # Use a color that matches the panel title but is brighter
+        r, g, b, a = self.color
+        imgui.text_colored("Detailed information about the current model state",
+                         min(r + 0.5, 1.0), min(g + 0.5, 1.0), min(b + 0.5, 1.0), 1.0)
+        imgui.separator()
+
+        # Display state properties
+        state = self.engine.state_tracker.get_state(self.engine.current_step)
+
+        if state is not None:
+            # Display token info
+            imgui.separator()
+            imgui.text(f"Token: {state['token']}")
+
+            # Display selected component info
+            if self.engine.selected_component == 'memory' and self.engine.selected_indices is not None:
+                i, j = self.engine.selected_indices
+                if i < state['memory'].shape[1] and j < state['memory'].shape[2]:
+                    value = state['memory'][0, i, j]
+                    imgui.separator()
+                    imgui.text(f"Selected Memory Cell: ({i}, {j})")
+                    imgui.text(f"Value: {value:.4f}")
+
+                    # Edit value
+                    imgui.separator()
+                    imgui.text("Edit Value")
+                    changed, value = imgui.slider_float("##edit_value", self.engine.edit_value, -1.0, 1.0, "%.4f")
+                    if changed:
+                        self.engine.edit_value = value
+
+                    if imgui.button("Apply Edit"):
+                        # In a real implementation, this would modify the model state
+                        # For this demo, we'll just log the action
+                        print(f"Would edit memory[0, {i}, {j}] from {state['memory'][0, i, j]:.4f} to {self.engine.edit_value:.4f}")
+                        self.engine.action_log.append(f"Would edit memory[0, {i}, {j}] from {state['memory'][0, i, j]:.4f} to {self.engine.edit_value:.4f}")
+
+            # Display memory info
+            if imgui.collapsing_header("Memory"):
+                if 'memory' in state:
+                    memory = state['memory']
+                    imgui.text(f"Shape: {memory.shape}")
+                    imgui.text(f"Min: {np.min(memory):.4f}")
+                    imgui.text(f"Max: {np.max(memory):.4f}")
+                    imgui.text(f"Mean: {np.mean(memory):.4f}")
+                else:
+                    imgui.text("No memory data available.")
+
+            # Display attention info
+            if imgui.collapsing_header("Attention"):
+                if 'attention' in state:
+                    attention = state['attention']
+                    imgui.text(f"Shape: {attention.shape}")
+                    imgui.text(f"Min: {np.min(attention):.4f}")
+                    imgui.text(f"Max: {np.max(attention):.4f}")
+                    imgui.text(f"Mean: {np.mean(attention):.4f}")
+                else:
+                    imgui.text("No attention data available.")
+
+            # Display embedding info
+            if imgui.collapsing_header("Embedding"):
+                if 'embedding' in state:
+                    embedding = state['embedding']
+                    imgui.text(f"Shape: {embedding.shape}")
+                    imgui.text(f"Min: {np.min(embedding):.4f}")
+                    imgui.text(f"Max: {np.max(embedding):.4f}")
+                    imgui.text(f"Mean: {np.mean(embedding):.4f}")
+                else:
+                    imgui.text("No embedding data available.")
+
+            # Display output info
+            if imgui.collapsing_header("Output"):
+                if 'output' in state:
+                    output = state['output']
+                    imgui.text(f"Shape: {output.shape}")
+                    imgui.text(f"Min: {np.min(output):.4f}")
+                    imgui.text(f"Max: {np.max(output):.4f}")
+                    imgui.text(f"Mean: {np.mean(output):.4f}")
+
+                    # Display top 5 logits
+                    imgui.separator()
+                    imgui.text("Top 5 Logits:")
+                    top_indices = np.argsort(output[0])[-5:][::-1]
+                    for i, idx in enumerate(top_indices):
+                        imgui.text(f"{i+1}. Token {idx}: {output[0, idx]:.4f}")
+                else:
+                    imgui.text("No output data available.")
+        else:
+            imgui.text("No state data available yet.")
+
+
+class PerformanceMonitorPanel(Panel):
+    """Panel for monitoring performance metrics."""
+
+    def render_content(self):
+        """Render the panel content."""
+        # Use a color that matches the panel title but is brighter
+        r, g, b, a = self.color
+        imgui.text_colored("Performance metrics and rendering settings",
+                         min(r + 0.5, 1.0), min(g + 0.5, 1.0), min(b + 0.5, 1.0), 1.0)
+        imgui.separator()
+
+        # Display FPS
+        fps = 1.0 / max(self.engine.performance_monitor.frame_time, 0.001)
+        avg_fps = sum(self.engine.performance_monitor.fps_history) / len(self.engine.performance_monitor.fps_history)
+
+        imgui.text(f"FPS: {fps:.1f} (Avg: {avg_fps:.1f})")
+        imgui.text(f"Frame Time: {self.engine.performance_monitor.frame_time * 1000:.1f} ms")
+
+        # FPS graph
+        imgui.separator()
+        imgui.text("FPS History")
+
+        # Plot FPS history
+        fps_values = self.engine.performance_monitor.fps_history.copy()
+        # Convert list to numpy array for imgui.plot_lines
+        fps_array = np.array(fps_values, dtype=np.float32)
+        imgui.plot_lines(
+            "##fps_history",
+            fps_array,
+            scale_min=0,
+            scale_max=max(self.engine.performance_monitor.target_fps * 1.5, max(fps_values)),
+            graph_size=(0, 80)
+        )
+
+        # Adaptive rendering settings
+        imgui.separator()
+        imgui.text("Rendering Settings")
+
+        changed, value = imgui.checkbox("Adaptive Rendering", self.engine.performance_monitor.adaptive_rendering)
+        if changed:
+            self.engine.performance_monitor.adaptive_rendering = value
+
+        if self.engine.performance_monitor.adaptive_rendering:
+            imgui.text(f"Detail Level: {self.engine.performance_monitor.detail_level:.2f}")
+
+            # Plot detail level history
+            detail_values = self.engine.performance_monitor.detail_level_history.copy()
+            # Convert list to numpy array for imgui.plot_lines
+            detail_array = np.array(detail_values, dtype=np.float32)
+            imgui.plot_lines(
+                "##detail_history",
+                detail_array,
+                scale_min=0,
+                scale_max=1.0,
+                graph_size=(0, 80)
+            )
+
+        # Action log
+        imgui.separator()
+        imgui.text("Action Log")
+
+        imgui.begin_child("action_log", 0, 100, True)
+        for action in reversed(self.engine.action_log[-10:]):
+            imgui.text(action)
+        imgui.end_child()
+
+
 # Visualization engine
 class VisualizationEngine:
     """Visualization engine for displaying model states."""
@@ -400,6 +838,24 @@ class VisualizationEngine:
         # Initialize performance monitor
         self.performance_monitor = PerformanceMonitor(target_fps=60.0)
 
+        # Initialize camera parameters
+        self.camera_distance = 5.0
+        self.camera_rotation_x = 0.0
+        self.camera_rotation_y = 0.0
+        self.last_mouse_pos = None
+
+        # Initialize panels with different colors
+        self.panels = [
+            # Blue for memory visualization
+            MemoryVisualizationPanel("Model Memory Visualization", self, color=(0.1, 0.3, 0.6, 1.0)),
+            # Green for timeline
+            TimelinePanel("Sequence Timeline", self, color=(0.1, 0.5, 0.3, 1.0)),
+            # Purple for state inspector
+            StateInspectorPanel("Model State Inspector", self, color=(0.4, 0.2, 0.6, 1.0)),
+            # Orange for performance monitor
+            PerformanceMonitorPanel("Performance Monitor", self, color=(0.6, 0.4, 0.1, 1.0))
+        ]
+
         # Initialize GLFW
         if not glfw.init():
             print("Could not initialize GLFW")
@@ -414,6 +870,25 @@ class VisualizationEngine:
 
         # Make the window's context current
         glfw.make_context_current(self.window)
+
+        # Initialize OpenGL
+        self.setup_opengl()
+
+        # Initialize matrices for 3D rendering
+        self.model_matrix = np.identity(4, dtype=np.float32)
+        self.view_matrix = self.get_view_matrix()
+        self.projection_matrix = self.get_projection_matrix()
+
+        # Initialize voxel renderer
+        try:
+            # Try to initialize the real VoxelRenderer
+            self.voxel_renderer = VoxelRenderer(max_voxels=10000)
+            print("Successfully initialized VoxelRenderer with OpenGL")
+        except Exception as e:
+            # Fall back to mock renderer if OpenGL initialization fails
+            print(f"Failed to initialize VoxelRenderer with OpenGL: {e}")
+            print("Falling back to MockVoxelRenderer")
+            self.voxel_renderer = MockVoxelRenderer(max_voxels=10000)
 
         # Initialize ImGui
         imgui.create_context()
@@ -472,6 +947,91 @@ class VisualizationEngine:
         style.colors[imgui.COLOR_HEADER_HOVERED] = (0.2, 0.3, 0.4, 1.0)  # Medium blue when hovered
         style.colors[imgui.COLOR_HEADER_ACTIVE] = (0.25, 0.35, 0.45, 1.0)  # Lighter blue when active
 
+    def setup_opengl(self):
+        """Set up OpenGL state."""
+        try:
+            # Enable depth testing
+            gl.glEnable(gl.GL_DEPTH_TEST)
+            gl.glDepthFunc(gl.GL_LESS)
+
+            # Enable blending
+            gl.glEnable(gl.GL_BLEND)
+            gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+
+            # Set clear color
+            gl.glClearColor(0.0, 0.0, 0.0, 1.0)
+
+            print("OpenGL initialized successfully")
+        except Exception as e:
+            print(f"Failed to initialize OpenGL: {e}")
+
+    def get_view_matrix(self):
+        """Get the view matrix.
+
+        Returns:
+            View matrix
+        """
+        # Calculate camera position
+        camera_x = self.camera_distance * np.sin(self.camera_rotation_y) * np.cos(self.camera_rotation_x)
+        camera_y = self.camera_distance * np.sin(self.camera_rotation_x)
+        camera_z = self.camera_distance * np.cos(self.camera_rotation_y) * np.cos(self.camera_rotation_x)
+
+        # Create view matrix
+        view_matrix = np.identity(4, dtype=np.float32)
+
+        # Set camera position
+        view_matrix[0, 3] = -camera_x
+        view_matrix[1, 3] = -camera_y
+        view_matrix[2, 3] = -camera_z
+
+        # Set camera rotation
+        rotation_matrix = np.identity(3, dtype=np.float32)
+
+        # Rotate around X axis
+        rotation_x = np.identity(3, dtype=np.float32)
+        rotation_x[1, 1] = np.cos(self.camera_rotation_x)
+        rotation_x[1, 2] = -np.sin(self.camera_rotation_x)
+        rotation_x[2, 1] = np.sin(self.camera_rotation_x)
+        rotation_x[2, 2] = np.cos(self.camera_rotation_x)
+
+        # Rotate around Y axis
+        rotation_y = np.identity(3, dtype=np.float32)
+        rotation_y[0, 0] = np.cos(self.camera_rotation_y)
+        rotation_y[0, 2] = np.sin(self.camera_rotation_y)
+        rotation_y[2, 0] = -np.sin(self.camera_rotation_y)
+        rotation_y[2, 2] = np.cos(self.camera_rotation_y)
+
+        # Combine rotations
+        rotation_matrix = rotation_x @ rotation_y
+
+        # Apply rotation to view matrix
+        view_matrix[:3, :3] = rotation_matrix
+
+        return view_matrix
+
+    def get_projection_matrix(self):
+        """Get the projection matrix.
+
+        Returns:
+            Projection matrix
+        """
+        # Create perspective projection matrix
+        aspect = self.window_width / self.window_height
+        fov = 45.0 * np.pi / 180.0
+        near = 0.1
+        far = 100.0
+
+        f = 1.0 / np.tan(fov / 2.0)
+
+        projection_matrix = np.zeros((4, 4), dtype=np.float32)
+        projection_matrix[0, 0] = f / aspect
+        projection_matrix[1, 1] = f
+        projection_matrix[2, 2] = (far + near) / (near - far)
+        projection_matrix[2, 3] = (2.0 * far * near) / (near - far)
+        projection_matrix[3, 2] = -1.0
+
+        return projection_matrix
+
     def update(self, dt):
         """Update the visualization engine.
 
@@ -486,6 +1046,22 @@ class VisualizationEngine:
             step, state = self.state_tracker.state_queue.get()
             print(f"Received state for step {step}")
 
+            # Create memory mapper
+            if 'memory' in state:
+                memory_mapper = MemoryToVoxelMapper()
+                memory_voxel_data = memory_mapper.map_to_voxels({
+                    'name': 'memory',
+                    'type': 'tensor',
+                    'shape': state['memory'].shape,
+                    'data': state['memory'],
+                    'metadata': {
+                        'is_memory': True
+                    }
+                })
+
+                # Set up memory voxels
+                self.setup_voxels(memory_voxel_data)
+
         # Update playback
         if self.playing:
             current_time = time.time()
@@ -495,6 +1071,99 @@ class VisualizationEngine:
                     self.current_step = self.state_tracker.current_step
                     self.playing = False
                 self.last_play_time = current_time
+
+    def setup_voxels(self, voxel_data):
+        """Set up voxels for rendering.
+
+        Args:
+            voxel_data: Voxel data dictionary
+        """
+        # Get voxel data
+        voxels = voxel_data['voxels']
+        dimensions = voxel_data['dimensions']
+        colormap = voxel_data['metadata'].get('color_map', 'viridis')
+
+        # Set up voxels
+        print(f"Setting up voxels with dimensions {dimensions} using {colormap} colormap...")
+        voxel_index = 0
+        for x in range(dimensions[0]):
+            for y in range(dimensions[1]):
+                for z in range(dimensions[2]):
+                    if voxels[x, y, z] > 0.0:
+                        # Calculate position
+                        position = np.array([
+                            (x / dimensions[0] - 0.5) * 2.0,
+                            (y / dimensions[1] - 0.5) * 2.0,
+                            (z / dimensions[2] - 0.5) * 2.0
+                        ], dtype=np.float32)
+
+                        # Calculate color
+                        value = voxels[x, y, z]
+
+                        # Use appropriate colormap based on metadata
+                        if colormap == 'plasma':
+                            # Plasma colormap (for memory)
+                            if value < 0.25:
+                                # Dark blue to blue
+                                t = value * 4.0
+                                color = np.array([0.0, t * 0.5, 0.5 + t * 0.5, 1.0])
+                            elif value < 0.5:
+                                # Blue to green
+                                t = (value - 0.25) * 4.0
+                                color = np.array([0.0, 0.5 + t * 0.5, 1.0, 1.0])
+                            elif value < 0.75:
+                                # Green to yellow
+                                t = (value - 0.5) * 4.0
+                                color = np.array([t, 1.0, 1.0 - t, 1.0])
+                            else:
+                                # Yellow to red
+                                t = (value - 0.75) * 4.0
+                                color = np.array([1.0, 1.0 - t, 0.0, 1.0])
+                        elif colormap == 'inferno':
+                            # Inferno colormap (for attention)
+                            if value < 0.25:
+                                # Black to purple
+                                t = value * 4.0
+                                color = np.array([t * 0.5, 0.0, t, 1.0])
+                            elif value < 0.5:
+                                # Purple to red
+                                t = (value - 0.25) * 4.0
+                                color = np.array([0.5 + t * 0.5, 0.0, 1.0 - t * 0.5, 1.0])
+                            elif value < 0.75:
+                                # Red to orange
+                                t = (value - 0.5) * 4.0
+                                color = np.array([1.0, t * 0.5, 0.0, 1.0])
+                            else:
+                                # Orange to yellow
+                                t = (value - 0.75) * 4.0
+                                color = np.array([1.0, 0.5 + t * 0.5, t, 1.0])
+                        else:
+                            # Default colormap: viridis
+                            if value < 0.25:
+                                # Dark purple to teal
+                                t = value * 4.0
+                                color = np.array([0.2, 0.0 + t * 0.3, 0.3 + t * 0.3, 1.0])
+                            elif value < 0.5:
+                                # Teal to green
+                                t = (value - 0.25) * 4.0
+                                color = np.array([0.2 + t * 0.2, 0.3 + t * 0.3, 0.6 - t * 0.2, 1.0])
+                            elif value < 0.75:
+                                # Green to yellow
+                                t = (value - 0.5) * 4.0
+                                color = np.array([0.4 + t * 0.6, 0.6 + t * 0.4, 0.4 - t * 0.4, 1.0])
+                            else:
+                                # Yellow to yellow
+                                t = (value - 0.75) * 4.0
+                                color = np.array([1.0, 1.0, 0.0 + t, 1.0])
+
+                        # Calculate scale
+                        scale = np.array([0.05, 0.05, 0.05], dtype=np.float32)
+
+                        # Set voxel
+                        self.voxel_renderer.set_voxel(voxel_index, position, scale, color, value)
+                        voxel_index += 1
+
+        print(f"Set up {voxel_index} voxels")
 
     def render(self):
         """Render the visualization."""
@@ -536,271 +1205,59 @@ class VisualizationEngine:
         top_panel_height = available_height * 0.618
         bottom_panel_height = available_height * 0.382
 
-        # Set positions for each panel with margins and spacing
-        # 3D Visualization panel (main area)
-        imgui.set_next_window_position(margin, menu_bar_height + margin)
-        imgui.set_next_window_size(main_panel_width, top_panel_height)
+        # Set initial positions for each panel on first run
+        if not hasattr(self, 'panels_positioned') or not self.panels_positioned:
+            # Set positions for each panel
+            # Memory Visualization panel (main area)
+            imgui.set_next_window_position(margin, menu_bar_height + margin)
+            imgui.set_next_window_size(main_panel_width, top_panel_height)
 
-        # Timeline panel (bottom)
-        imgui.set_next_window_position(margin, menu_bar_height + margin + top_panel_height + spacing)
-        imgui.set_next_window_size(main_panel_width, bottom_panel_height)
+            # Timeline panel (bottom)
+            imgui.set_next_window_position(margin, menu_bar_height + margin + top_panel_height + spacing)
+            imgui.set_next_window_size(main_panel_width, bottom_panel_height)
 
-        # Properties panel (right)
-        imgui.set_next_window_position(margin + main_panel_width + spacing, menu_bar_height + margin)
-        imgui.set_next_window_size(right_panel_width, top_panel_height)
+            # Properties panel (right)
+            imgui.set_next_window_position(margin + main_panel_width + spacing, menu_bar_height + margin)
+            imgui.set_next_window_size(right_panel_width, top_panel_height)
 
-        # Performance panel (bottom right)
-        imgui.set_next_window_position(margin + main_panel_width + spacing, menu_bar_height + margin + top_panel_height + spacing)
-        imgui.set_next_window_size(right_panel_width, bottom_panel_height)
+            # Performance panel (bottom right)
+            imgui.set_next_window_position(margin + main_panel_width + spacing, menu_bar_height + margin + top_panel_height + spacing)
+            imgui.set_next_window_size(right_panel_width, bottom_panel_height)
 
-        # Create panels
-        # Define window flags for fixed panels
-        window_flags = (
-            imgui.WINDOW_NO_COLLAPSE |
-            imgui.WINDOW_NO_RESIZE |
-            imgui.WINDOW_NO_MOVE
-        )
+            # Mark panels as positioned
+            self.panels_positioned = True
 
-        # 3D Visualization panel
-        imgui.begin("Model Memory Visualization", True, window_flags)
-        imgui.text_colored("Interactive 3D visualization of the model's memory state", 0.7, 0.8, 1.0, 1.0)
-        imgui.separator()
+        # Render all panels
+        for panel in self.panels:
+            panel.render()
 
-        # Get current state
-        state = self.state_tracker.get_state(self.current_step)
 
-        if state is not None:
-            # Display current state info
-            imgui.text(f"Step {self.current_step}: Token {state['token']}")
 
-            # Draw memory visualization
-            draw_list = imgui.get_window_draw_list()
-            pos = imgui.get_cursor_screen_pos()
-
-            # Use a fixed size
-            size_x = main_panel_width - 20  # Padding
-            size_y = top_panel_height - 100  # Padding
-
-            # Draw background
-            draw_list.add_rect_filled(
-                pos[0], pos[1],
-                pos[0] + size_x, pos[1] + size_y,
-                imgui.get_color_u32_rgba(0.1, 0.1, 0.3, 1.0)
-            )
-
-            # Draw memory cells
-            memory = state['memory'][0]
-            cell_width = size_x / memory.shape[0]
-            cell_height = size_y / memory.shape[1]
-
-            for i in range(memory.shape[0]):
-                for j in range(memory.shape[1]):
-                    x = pos[0] + i * cell_width
-                    y = pos[1] + j * cell_height
-
-                    # Use memory value to determine color
-                    value = memory[i, j]
-                    normalized_value = (value + 1.0) / 2.0  # Normalize from [-1, 1] to [0, 1]
-                    normalized_value = max(0.0, min(1.0, normalized_value))  # Clamp to [0, 1]
-
-                    # Highlight selected cell
-                    if self.selected_component == 'memory' and self.selected_indices == (i, j):
-                        color = imgui.get_color_u32_rgba(1.0, 1.0, 0.0, 1.0)
-                    else:
-                        color = imgui.get_color_u32_rgba(normalized_value, 0.0, 1.0 - normalized_value, 1.0)
-
-                    # Draw cell
-                    draw_list.add_rect_filled(
-                        x, y,
-                        x + cell_width - 1, y + cell_height - 1,
-                        color
-                    )
-
-                    # Check for mouse click on this cell
-                    if imgui.is_mouse_clicked(0):  # Left mouse button
-                        mouse_pos = imgui.get_mouse_pos()
-                        if (x <= mouse_pos[0] <= x + cell_width and
-                            y <= mouse_pos[1] <= y + cell_height):
-                            self.selected_component = 'memory'
-                            self.selected_indices = (i, j)
-                            print(f"Selected memory cell ({i}, {j}) with value {value:.4f}")
-                            self.action_log.append(f"Selected memory cell ({i}, {j}) with value {value:.4f}")
-        else:
-            imgui.text("No state data available yet.")
-
-        imgui.end()
-
-        # Timeline panel
-        imgui.begin("Sequence Timeline", True, window_flags)
-        imgui.text_colored("Navigate through the model's execution steps", 0.7, 0.8, 1.0, 1.0)
-        imgui.separator()
-
-        # Add timeline controls
-        if self.state_tracker.current_step >= 0:
-            # Step slider
-            changed, value = imgui.slider_int("Step", self.current_step, 0, self.state_tracker.current_step)
-            if changed:
-                self.current_step = value
-                self.playing = False
-
-            # Playback controls
-            imgui.separator()
-            if self.playing:
-                if imgui.button("Pause"):
-                    self.playing = False
-            else:
-                if imgui.button("Play"):
-                    self.playing = True
-                    self.last_play_time = time.time()
-
-            imgui.same_line()
-            if imgui.button("<<"):
-                self.current_step = max(0, self.current_step - 1)
-                self.playing = False
-
-            imgui.same_line()
-            if imgui.button(">>"):
-                self.current_step = min(self.state_tracker.current_step, self.current_step + 1)
-                self.playing = False
-
-            # Play speed
-            imgui.separator()
-            imgui.text("Play Speed")
-            changed, value = imgui.slider_float("##play_speed", self.play_speed, 0.1, 5.0, "%.1fx")
-            if changed:
-                self.play_speed = value
-        else:
-            imgui.text("No state data available yet.")
-
-        imgui.end()
-
-        # Properties panel
-        imgui.begin("Model State Inspector", True, window_flags)
-        imgui.text_colored("Detailed information about the current model state", 0.7, 0.8, 1.0, 1.0)
-        imgui.separator()
-
-        # Display state properties
-        state = self.state_tracker.get_state(self.current_step)
-
-        if state is not None:
-            # Display token info
-            imgui.separator()
-            imgui.text(f"Token: {state['token']}")
-
-            # Display selected component info
-            if self.selected_component == 'memory' and self.selected_indices is not None:
-                i, j = self.selected_indices
-                if i < state['memory'].shape[1] and j < state['memory'].shape[2]:
-                    value = state['memory'][0, i, j]
-                    imgui.separator()
-                    imgui.text(f"Selected Memory Cell: ({i}, {j})")
-                    imgui.text(f"Value: {value:.4f}")
-
-                    # Edit value
-                    imgui.separator()
-                    imgui.text("Edit Value")
-                    changed, value = imgui.slider_float("##edit_value", self.edit_value, -1.0, 1.0, "%.4f")
-                    if changed:
-                        self.edit_value = value
-
-                    if imgui.button("Apply Edit"):
-                        # In a real implementation, this would modify the model state
-                        # For this demo, we'll just log the action
-                        print(f"Would edit memory[0, {i}, {j}] from {state['memory'][0, i, j]:.4f} to {self.edit_value:.4f}")
-                        self.action_log.append(f"Would edit memory[0, {i}, {j}] from {state['memory'][0, i, j]:.4f} to {self.edit_value:.4f}")
-
-            # Display embedding info
-            if imgui.collapsing_header("Embedding"):
-                embedding = state['embedding']
-                imgui.text(f"Shape: {embedding.shape}")
-                imgui.text(f"Min: {np.min(embedding):.4f}")
-                imgui.text(f"Max: {np.max(embedding):.4f}")
-                imgui.text(f"Mean: {np.mean(embedding):.4f}")
-
-            # Display memory info
-            if imgui.collapsing_header("Memory"):
-                memory = state['memory']
-                imgui.text(f"Shape: {memory.shape}")
-                imgui.text(f"Min: {np.min(memory):.4f}")
-                imgui.text(f"Max: {np.max(memory):.4f}")
-                imgui.text(f"Mean: {np.mean(memory):.4f}")
-
-            # Display attention info
-            if imgui.collapsing_header("Attention"):
-                attention = state['attention']
-                imgui.text(f"Shape: {attention.shape}")
-                imgui.text(f"Min: {np.min(attention):.4f}")
-                imgui.text(f"Max: {np.max(attention):.4f}")
-                imgui.text(f"Mean: {np.mean(attention):.4f}")
-
-            # Display output info
-            if imgui.collapsing_header("Output"):
-                output = state['output']
-                imgui.text(f"Shape: {output.shape}")
-                imgui.text(f"Min: {np.min(output):.4f}")
-                imgui.text(f"Max: {np.max(output):.4f}")
-                imgui.text(f"Mean: {np.mean(output):.4f}")
-
-                # Display top 5 tokens
-                imgui.separator()
-                imgui.text("Top 5 Tokens:")
-                top_indices = np.argsort(output[0])[-5:][::-1]
-                for i, idx in enumerate(top_indices):
-                    imgui.text(f"{i+1}. Token {idx}: {output[0, idx]:.4f}")
-        else:
-            imgui.text("No state data available yet.")
-
-        imgui.end()
-
-        # Performance panel
-        imgui.begin("Performance Monitor", True, window_flags)
-        imgui.text_colored("Real-time performance metrics and settings", 0.7, 0.8, 1.0, 1.0)
-        imgui.separator()
-
-        # Display FPS
-        imgui.text(f"FPS: {self.performance_monitor.get_current_fps():.1f}")
-        imgui.text(f"Average FPS: {self.performance_monitor.get_average_fps():.1f}")
-        imgui.text(f"Frame Time: {self.performance_monitor.frame_time * 1000:.2f} ms")
-
-        # Display detail level
-        imgui.separator()
-        imgui.text(f"Detail Level: {self.performance_monitor.detail_level:.2f}")
-
-        # Adaptive rendering checkbox
-        changed, value = imgui.checkbox("Adaptive Rendering", self.performance_monitor.adaptive_rendering)
-        if changed:
-            self.performance_monitor.adaptive_rendering = value
-            print(f"{'Enabled' if value else 'Disabled'} adaptive rendering")
-            self.action_log.append(f"{'Enabled' if value else 'Disabled'} adaptive rendering")
-
-        # Target FPS slider
-        changed, value = imgui.slider_float("Target FPS", self.performance_monitor.target_fps, 30.0, 120.0, "%.1f")
-        if changed:
-            self.performance_monitor.target_fps = value
-            print(f"Changed target FPS to {value:.1f}")
-            self.action_log.append(f"Changed target FPS to {value:.1f}")
-
-        # Action log
-        imgui.separator()
-        imgui.text("Action Log")
-
-        for log_entry in self.action_log[-10:]:  # Show last 10 entries
-            imgui.text(log_entry)
-
-        imgui.end()
-
-        # Render
+        # Render ImGui
         imgui.render()
 
         # Clear the framebuffer
-        gl.glClearColor(0.0, 0.0, 0.0, 1.0)
-        gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+        try:
+            gl.glClearColor(0.0, 0.0, 0.0, 1.0)
+            gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+
+            # Set up full viewport for ImGui rendering
+            gl.glViewport(0, 0, self.window_width, self.window_height)
+        except Exception as e:
+            # Print error but continue if OpenGL calls fail
+            print(f"OpenGL error in framebuffer setup: {e}")
+            print("Rendering ImGui")
 
         # Render ImGui
         self.impl.render(imgui.get_draw_data())
 
         # Swap front and back buffers
         glfw.swap_buffers(self.window)
+
+        # After first frame, set panels_positioned to True so panels can be moved
+        if not hasattr(self, 'panels_positioned') or not self.panels_positioned:
+            self.panels_positioned = True
+            print("First frame rendered, panels can now be moved.")
 
     def should_close(self):
         """Check if the window should close.
@@ -812,7 +1269,13 @@ class VisualizationEngine:
 
     def cleanup(self):
         """Clean up resources."""
+        # Clean up voxel renderer
+        self.voxel_renderer.cleanup()
+
+        # Clean up ImGui
         self.impl.shutdown()
+
+        # Terminate GLFW
         glfw.terminate()
 
 
