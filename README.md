@@ -1,782 +1,444 @@
-# TTM Multiplication Model Implementation Checklist
+# ARC AGI 2 Project: Comprehensive Implementation Checklist 🚀🎯
 
-This repository implements a Token Turing Machine (TTM) model with a Transformer processing unit for learning multiplication of arbitrary numbers. The implementation follows the architecture described in the [Token Turing Machines paper](https://arxiv.org/abs/2211.09119) by Michael S. Ryoo et al. from Google Research.
+This document outlines the full implementation plan, workflow, and technical checklist for the ARC AGI 2 project. Our goal is to develop a novel, modular system capable of achieving high performance on the ARC AGI 2 benchmark by integrating cutting-edge concepts like Kolmogorov-Arnold Networks (KAN 2.0), Neural Turing Machines (NTM), DreamCoder program synthesis, and an advanced interactive visualization engine. This checklist is designed for collaborative development, emphasizing robust source control, modularity, rigorous testing, and clear documentation.
 
-Token Turing Machines (TTMs) are sequential, autoregressive models with external memory designed for efficient processing of sequential data. The key innovation is the use of token summarization to maintain a compact memory representation that summarizes relevant history, enabling constant computational cost regardless of sequence length.
+**Guiding Principles:**
+- **Modularity:** All major components (KAN, NTM variants, Memory Ops, DreamCoder, Visualization) should be designed as independent, hot-swappable modules with clearly defined interfaces.
+- **Interpretability & Debugging:** The PyVista/IMGUI visualization engine is central, providing deep, real-time insight into every tensor and computational state via hooks, enabling interactive debugging and analysis with minimal coding post-setup.
+- **Collaboration:** Strict adherence to Git best practices is crucial for managing complexity and facilitating teamwork.
+- **Rigorous Evaluation:** Success is defined by achieving high performance (e.g., ≥80%) on ARC AGI 2 locally *before* submission, backed by thorough ablation studies.
+- **Evolvability:** This checklist is a living document; update it as the project evolves and new insights emerge.
 
-## Implementation Checklist
+---
 
-Update the README list by marking each item as complete only after meeting its specified condition, ensuring that all related questions are answered and the required Git operations are executed when the condition is satisfied.
+## Phase 0: Project Setup & Source Control Foundation 🔧 Git
 
-### Phase 1: Environment Setup and Hardware Testing
+- [ ] **Initialize Repository & Collaboration Tools**
+    - [ ] Create GitHub repository.
+        - **Condition:** Repository exists online.
+        - **Answer:** What is the URL of the remote repository? `_________________________`
+        - **Git:** `git init`, `git remote add origin <repository-url>`
+    - [ ] Set up project structure (e.g., `src/`, `data/`, `models/`, `notebooks/`, `docs/`, `tests/`).
+        - **Condition:** Standard project directories are created and include `.gitkeep` files where necessary.
+        - **Answer:** List the top-level directories created: `_________________________`
+        - **Git:** `git add .`, `git commit -m "Initial project structure"`
+    - [ ] Push initial structure to remote.
+        - **Condition:** `main` branch exists on the remote repository.
+        - **Git:** `git push -u origin main`
+    - [ ] Set up GitHub Projects or Issue Tracker for task management.
+        - **Condition:** A project board or issue labeling system is in place.
+        - **Answer:** Link to Project Board/Issue Tracker: `_________________________`
 
-- [x] **Set up development environment**
-  - [x] Install PyTorch
-      - Condition: `import torch` runs without error and `torch.__version__` returns version ≥ 1.10.0
-      - Answer: What PyTorch version was installed? PyTorch version 2.5.1+cu121
-      - Git: Initialize repository with `git init`
-  - [x] Create project directory structure
-      - Condition: directories `src/`, `data/`, and `models/` exist
-      - Answer: What additional directories were created, if any? Created data/ and models/ directories with .gitkeep files
-      - Git: Add directories with `git add src/ data/ models/`
-  - [x] Initialize version control
-      - Condition: `.git/` directory exists
-      - Answer: What is the URL of the remote repository? https://github.com/ricardoamartinez/token_turing_machine.git
-      - Git: Create initial commit with `git commit -m "Initial project structure"`
-      - Git: Add remote with `git remote add origin <repository-url>`
-      - Git: Push to remote with `git push -u origin main`
+- [ ] **Define and Document Git Workflow & Best Practices**
+    - [ ] Create `GIT_GUIDELINES.md` document.
+        - **Condition:** File exists in the repository root.
+        - **Git:** Create branch `docs/git-guidelines`, add file, commit, create PR, merge.
+    - [ ] Define Branching Strategy (e.g., `main`, `develop`, `feature/<>`, `bugfix/<>`, `experiment/<>`, `hotfix/<>`).
+        - **Condition:** Strategy is clearly documented in `GIT_GUIDELINES.md`.
+        - **Answer:** Summarize the primary branches and their purpose: `_________________________`
+    - [ ] Define Pull Request (PR) Protocol.
+        - **Condition:** Protocol documented, requiring descriptive titles/bodies, linking issues, mandatory code reviews (at least 1 approval), and passing CI checks (setup later).
+        - **Answer:** Who are the designated reviewers initially? `_________________________`
+    - [ ] Define Commit Message Convention (e.g., Conventional Commits).
+        - **Condition:** Convention specified in `GIT_GUIDELINES.md`.
+        - **Answer:** Link to chosen convention standard: `_________________________`
+    - [ ] Define Merge Strategy (e.g., Squash and Merge, Rebase and Merge).
+        - **Condition:** Chosen strategy documented in `GIT_GUIDELINES.md`.
+        - **Answer:** What merge strategy will be used for feature branches into `develop`/`main`? `_________________________`
+    - [ ] Document Strategy for Handling Merge Conflicts.
+        - **Condition:** Step-by-step guide in `GIT_GUIDELINES.md` (e.g., pull latest `develop`, resolve locally, test, push).
+        - **Answer:** What tool(s) are recommended for conflict resolution (e.g., VS Code, `git mergetool`)? `_________________________`
+    - [ ] Document Strategy for Messy State Recovery & Code Cleanup.
+        - **Condition:** `GIT_GUIDELINES.md` includes instructions for using `git reflog`, `git reset`, `git revert`, identifying/removing dead code/bloat, and potentially `git filter-branch` or alternatives (with caution).
+        - **Answer:** What is the policy on force-pushing (e.g., allowed only on personal feature branches)? `_________________________`
+    - [ ] Document Tagging Strategy for Releases and Milestones.
+        - **Condition:** Strategy defined (e.g., Semantic Versioning for releases `vX.Y.Z`, milestone tags like `milestone-vis-engine-v1`).
+        - **Answer:** Example of a release tag: `_________________________`
 
-- [x] **Test hardware performance**
-  - [x] Create simple benchmark script for CPU vs CUDA
-      - Condition: `benchmark.py` exists
-      - Answer: What metrics does the benchmark script measure? The benchmark scripts measure execution time in milliseconds for matrix multiplication, token embedding, and transformer operations.
-      - Git: Create branch with `git checkout -b feature/hardware-benchmarking`
-  - [x] Test matrix multiplication on CPU
-      - Condition: benchmark records time for 1000 matrix multiplications
-      - Answer: What was the average time per operation in ms? 0.0623 ms
-      - Git: Commit changes with `git commit -m "Add CPU matrix multiplication benchmark"`
-  - [x] Test matrix multiplication on CUDA if available
-      - Condition: benchmark records time for 1000 matrix multiplications
-      - Answer: What was the average time per operation in ms? Too fast to measure accurately (reported as 0.0000 ms)
-      - Git: Commit changes with `git commit -m "Add CUDA matrix multiplication benchmark"`
-  - [x] Test token embedding operations on CPU vs CUDA
-      - Condition: benchmark records time for embedding 1000 sequences
-      - Answer: What was the speedup factor of CUDA over CPU? Extremely high (CPU: 0.1322 ms, CUDA: too fast to measure accurately)
-      - Git: Commit changes with `git commit -m "Add embedding operations benchmark"`
-  - [x] Test transformer operations on CPU vs CUDA
-      - Condition: benchmark records time for 1000 transformer forward passes
-      - Answer: What was the speedup factor of CUDA over CPU? 13.09x (CPU: 8.1049 ms, CUDA: 0.6193 ms)
-      - Git: Commit changes with `git commit -m "Add transformer operations benchmark"`
-  - [x] Determine optimal hardware for development
-      - Condition: decision documented in `hardware_choice.md`
-      - Answer: Which hardware was chosen and why? CUDA on NVIDIA GeForce RTX 4080 SUPER due to significant performance advantage (13x speedup for transformer operations), sufficient VRAM (16GB), and future scalability.
-      - Git: Commit documentation with `git commit -m "Document hardware choice decision"`
-      - Git: Merge branch with `git checkout main && git merge feature/hardware-benchmarking`
-      - Git: Push changes with `git push origin main`
+- [ ] **Set Up Development Environment**
+    - [ ] Create `requirements.txt` or environment configuration (e.g., `conda env export > environment.yml`).
+        - **Condition:** File exists and lists core dependencies (Python version, PyTorch, PyVista, Panel/IMGUI lib, NumPy, etc.).
+        - **Answer:** What Python version is targeted? `____`; What PyTorch version? `____`; PyVista? `____`
+        - **Git:** Commit environment file.
+    - [ ] Ensure all collaborators can replicate the environment.
+        - **Condition:** At least one other collaborator confirms successful environment setup from the configuration file.
+        - **Answer:** Document any OS-specific setup notes: `_________________________`
 
-### Phase 2: Core Data Structures
+- [ ] **Hardware Testing & Selection**
+    - [ ] Develop benchmark script (`benchmarks/hardware_test.py`) for core operations (tensor math, potential KAN/NTM ops, PyVista rendering).
+        - **Condition:** Script exists and measures execution time (ms) and GPU memory usage (MB) on CPU vs. available CUDA GPUs.
+        - **Answer:** What specific operations are benchmarked? `_________________________`
+        - **Git:** Create branch `feature/hardware-benchmarking`, commit script.
+    - [ ] Run benchmarks on target hardware (specify collaborator machines if different).
+        - **Condition:** Benchmark results are recorded.
+        - **Answer:** List target GPUs tested: `_________________________`
+    - [ ] Document hardware choice and rationale in `docs/hardware_choice.md`.
+        - **Condition:** Document justifies the primary development/testing hardware based on performance (speed, VRAM) and efficiency.
+        - **Answer:** Chosen primary GPU and why: `_________________________`
+        - **Git:** Commit results and documentation, create PR, merge `feature/hardware-benchmarking`.
 
-- [x] **Implement tokenization scheme**
-  - [x] Define vocabulary size = 13
-      - Condition: `VOCAB_SIZE = 13` constant exists in code
-      - Answer: Where is this constant defined (file path)? src/ttm/data/tokenization.py
-      - Git: Create branch with `git checkout -b feature/tokenization`
-  - [x] Assign tokens 0-9 for digits
-      - Condition: `DIGIT_TOKENS = range(10)` or equivalent exists in code
-      - Answer: How are digit tokens represented in the code? As a list: `DIGIT_TOKENS = list(range(10))`
-      - Git: Commit with `git commit -m "Define digit tokens"`
-  - [x] Assign token 10 for multiplication symbol
-      - Condition: `TIMES_TOKEN = 10` constant exists in code
-      - Answer: What symbol is displayed for this token? The symbol "×" (Unicode multiplication sign)
-      - Git: Commit with `git commit -m "Add multiplication symbol token"`
-  - [x] Assign token 11 for EOS
-      - Condition: `EOS_TOKEN = 11` constant exists in code
-      - Answer: How is EOS handled in the tokenization process? EOS is added at the end of input and target sequences, and displayed as "<EOS>" in string representations
-      - Git: Commit with `git commit -m "Add EOS token"`
-  - [x] Assign token 12 for padding
-      - Condition: `PAD_TOKEN = 12` constant exists in code
-      - Answer: How is padding applied to sequences? Using the `pad_sequence` function that appends PAD_TOKEN to sequences until they reach the specified length
-      - Git: Commit with `git commit -m "Add padding token"`
-  - [x] Create function to convert numbers to token sequences
-      - Condition: `number_to_tokens(42)` returns `[4, 2]`
-      - Answer: How does the function handle multi-digit numbers? It converts the number to digits by repeatedly dividing by 10 and taking the remainder, then reverses the list to get the correct order
-      - Git: Commit with `git commit -m "Implement number to token conversion"`
-  - [x] Create function to convert token sequences back to strings
-      - Condition: `tokens_to_string([4, 2])` returns `"42"`
-      - Answer: How does the function handle special tokens like EOS? Special tokens are converted to their string representations: TIMES_TOKEN to "×", EOS_TOKEN to "<EOS>", and PAD_TOKEN to "<PAD>"
-      - Git: Commit with `git commit -m "Implement token to string conversion"`
-      - Git: Push branch with `git push origin feature/tokenization`
+---
 
-- [x] **Implement dataset class**
-  - [x] Create MultiplicationDataset class
-      - Condition: `MultiplicationDataset` class exists with `__init__` and `generate_batch` methods
-      - Answer: What parameters does the constructor accept? The constructor accepts batch_size (default=32), max_seq_len (default=20), seed (optional), and device (optional PyTorch device)
-      - Git: Create branch with `git checkout -b feature/dataset`
-  - [x] Implement difficulty stages
-      - Condition: `stages` attribute contains exactly 7 tuples of (min_val, max_val)
-      - Answer: What are the ranges for each difficulty stage? Stage 1: (1, 9), Stage 2: (10, 99), Stage 3: (100, 999), Stage 4: (1000, 9999), Stage 5: (1, 99), Stage 6: (1, 999), Stage 7: (1, 9999)
-      - Git: Commit with `git commit -m "Implement difficulty stages"`
-  - [x] Implement batch generation
-      - Condition: `generate_batch()` returns two arrays of shape (batch_size, seq_len)
-      - Answer: What is the maximum sequence length used? max_seq_len parameter (default=20) determines the maximum sequence length
-      - Git: Commit with `git commit -m "Implement batch generation"`
-  - [x] Implement data augmentation techniques (as used in TTM paper)
-      - Condition: `augment_batch(inputs, targets)` applies augmentation to training examples
-      - Answer: What augmentation techniques are implemented? 1) Swapping operands (a × b = b × a), 2) Random permutation of examples within the batch
-      - Git: Commit with `git commit -m "Add data augmentation techniques from TTM paper"`
-  - [x] Implement difficulty progression
-      - Condition: `increase_difficulty()` increments `current_stage` by 1
-      - Answer: What triggers difficulty progression during training? The `should_increase_difficulty` method checks if the average accuracy over the last 5 evaluations exceeds a threshold (default=0.9)
-      - Git: Commit with `git commit -m "Add difficulty progression"`
-  - [x] Test dataset with small batch
-      - Condition: `dataset.generate_batch()` returns valid inputs and targets
-      - Answer: Provide an example input-target pair from the test: Input: "5×7<EOS>" and Target: "35<EOS>" (with padding tokens omitted for clarity)
-      - Git: Commit with `git commit -m "Add dataset tests"`
-      - Git: Push branch with `git push origin feature/dataset`
-      - Git: Create pull request for review
-      - Git: After review, merge with `git checkout main && git merge feature/dataset`
-      - Git: Merge tokenization branch with `git merge feature/tokenization`
-      - Git: Push to main with `git push origin main`
+## Phase 1: Core ARC AGI Data Handling 💾
 
-### Phase 3: Token Summarization Module
+- [ ] **Acquire and Structure ARC Datasets**
+    - [ ] Download ARC AGI 1 dataset.
+        - **Condition:** Dataset files are stored locally (ideally outside the repo, path configured).
+        - **Answer:** Path to ARC AGI 1 data: `_________________________`
+    - [ ] Download ARC AGI 2 dataset (Training, Public Eval, potentially access structure for Private Eval).
+        - **Condition:** Dataset files are stored locally.
+        - **Answer:** Path to ARC AGI 2 data: `_________________________`
+    - [ ] Define a standardized data loading format/interface in `src/data/arc_dataloader.py`.
+        - **Condition:** A class or function exists that can load tasks from both ARC AGI 1 and ARC AGI 2 formats into a consistent internal representation (e.g., list of input/output grids).
+        - **Answer:** Describe the internal task representation (e.g., `{'train': [{'input': grid, 'output': grid}], 'test': [{'input': grid, 'output': grid}]}`). `_________________________`
+        - **Git:** Create branch `feature/data-handling`, commit dataloader.
 
-- [x] **Implement token summarization methods from TTM paper**
-  - [x] Create importance weight calculation function using MLP-based approach
-      - Condition: `compute_importance_weights(tokens, k=5)` returns weights of shape [batch_size, k, num_tokens]
-      - Answer: What MLP architecture was used (layers, sizes)? A 2-layer MLP with hidden dimension 128 and ReLU activation, followed by a linear layer that outputs a scalar importance weight for each token
-      - Git: Create branch with `git checkout -b feature/token-summarization`
-  - [x] Implement softmax normalization of weights
-      - Condition: `normalize_weights(weights)` returns weights that sum to 1.0 along the last dimension
-      - Answer: What temperature value is used in the softmax, if any? A temperature parameter (default=1.0) is used to control the sharpness of the distribution
-      - Git: Commit with `git commit -m "Implement weight normalization"`
-  - [x] Implement weighted summation
-      - Condition: `weighted_sum(tokens, weights)` returns tokens of shape [batch_size, k, embedding_dim]
-      - Answer: How is the matrix multiplication implemented? Element-wise multiplication of tokens by weights followed by summation along the token dimension
-      - Git: Commit with `git commit -m "Implement weighted summation"`
-  - [x] Combine into token summarization function
-      - Condition: `token_summarize(tokens, k=5)` reduces tokens from any count to exactly k tokens
-      - Answer: What is the computational complexity of this operation? O(batch_size * num_tokens * embedding_dim) for computing weights, and O(batch_size * k * num_tokens * embedding_dim) for the weighted summation
-      - Git: Commit with `git commit -m "Create token summarization function"`
-  - [x] Test MLP-based token summarization with dummy inputs
-      - Condition: `token_summarize(torch.randn(2, 10, 128), k=5).shape` equals [2, 5, 128]
-      - Answer: What is the average L2 norm difference between input and output tokens? This varies with random inputs, but tests confirm the shape is correct and the operation preserves the embedding space
-      - Git: Commit with `git commit -m "Add MLP-based token summarization tests"`
-  - [x] Implement alternative query-based token summarization (as described in TTM paper)
-      - Condition: `query_summarize(tokens, k=5)` reduces tokens from any count to exactly k tokens using learned query vectors
-      - Answer: How are the query vectors initialized? Query vectors are initialized with random values from a normal distribution scaled by 1/sqrt(embedding_dim)
-      - Git: Commit with `git commit -m "Implement query-based token summarization from TTM paper"`
-  - [x] Test query-based token summarization with dummy inputs
-      - Condition: `query_summarize(torch.randn(2, 10, 128), k=5).shape` equals [2, 5, 128]
-      - Answer: How does query-based performance compare to MLP-based approach? Query-based approach is more computationally efficient for large token sequences due to the attention mechanism, but may require more parameters
-      - Git: Commit with `git commit -m "Add query-based token summarization tests"`
-  - [x] Implement pooling-based token summarization (as described in TTM paper)
-      - Condition: `pooling_summarize(tokens, k=5)` reduces tokens from any count to exactly k tokens using average pooling
-      - Answer: How is the pooling operation implemented? Tokens are divided into k groups, and either average or max pooling is applied to each group, followed by a projection layer
-      - Git: Commit with `git commit -m "Implement pooling-based token summarization from TTM paper"`
-  - [x] Test pooling-based token summarization with dummy inputs
-      - Condition: `pooling_summarize(torch.randn(2, 10, 128), k=5).shape` equals [2, 5, 128]
-      - Answer: How does pooling-based performance compare to other approaches? Pooling-based approach is the most computationally efficient but may lose more information compared to MLP or query-based approaches
-      - Git: Commit with `git commit -m "Add pooling-based token summarization tests"`
-      - Git: Push branch with `git push origin feature/token-summarization`
-      - Git: Create pull request for review
-      - Git: After review, merge with `git checkout main && git merge feature/token-summarization`
-      - Git: Push to main with `git push origin main`
+- [ ] **Implement Dataset Merging and Selection**
+    - [ ] Create functionality to merge ARC AGI 1 and ARC AGI 2 training sets.
+        - **Condition:** A function/method exists that returns a combined dataset object.
+        - **Answer:** How are potential overlaps or differences handled during merging? `_________________________`
+        - **Git:** Commit merging logic.
+    - [ ] Implement logic to select specific datasets or subsets (e.g., only ARC1, only ARC2, combined, specific task IDs).
+        - **Condition:** Dataloader can be configured to yield data from selected sources.
+        - **Answer:** How is dataset selection specified (e.g., config file, function argument)? `_________________________`
+        - **Git:** Commit selection logic.
+    - [ ] Add unit tests for data loading, merging, and selection.
+        - **Condition:** Tests in `tests/test_data.py` verify correct loading and filtering.
+        - **Answer:** What specific scenarios are tested (e.g., loading ARC1 task, ARC2 task, merged set size)? `_________________________`
+        - **Git:** Commit tests, create PR, merge `feature/data-handling`.
 
-### Phase 4: Memory Operations
+---
 
-- [x] **Implement unified memory-input reading strategy (as described in TTM paper)**
-  - [x] Create function to concatenate memory and input tokens
-      - Condition: `concat_memory_input(memory, input).shape[1]` equals `memory.shape[1] + input.shape[1]`
-      - Answer: How is the concatenation performed (which dimension)? Concatenation is performed along dimension 1 (sequence length dimension) using torch.cat([memory, input_tokens], dim=1)
-      - Git: Create branch with `git checkout -b feature/memory-operations`
-  - [x] Add learnable positional embeddings to distinguish memory from input
-      - Condition: `add_positional_info(memory, input)` adds different embeddings to memory vs. input tokens
-      - Answer: What type of positional encoding is used? Learnable positional embeddings initialized with random values scaled by 1/sqrt(embedding_dim) and expanded to match the batch size and sequence length
-      - Git: Commit with `git commit -m "Add learnable positional embeddings for memory addressing by location"`
-  - [x] Apply token summarization to reduce tokens to r=16 (as specified in TTM paper)
-      - Condition: `read_operation(memory, input, r=16).shape[1]` equals exactly 16
-      - Answer: How many tokens come from memory vs. input after summarization? The token summarization process doesn't explicitly distinguish between memory and input tokens after concatenation, but uses attention mechanisms to focus on the most relevant information from both sources
-      - Git: Commit with `git commit -m "Implement memory read operation with r=16 tokens as in TTM paper"`
-  - [x] Test read operation with dummy inputs
-      - Condition: `read_operation(torch.randn(2, 12, 128), torch.randn(2, 10, 128), r=16).shape` equals [2, 16, 128]
-      - Answer: What is the execution time of this operation? The execution time varies by hardware, but tests confirm the operation is efficient and produces the correct output shape
-      - Git: Commit with `git commit -m "Add memory read tests"`
+## Phase 2: KAN Implementation (Kolmogorov-Arnold Networks) 🧠
 
-- [x] **Implement token summarization-based memory write operation (as described in TTM paper)**
-  - [x] Create function to concatenate memory, output, and input tokens
-      - Condition: `concat_for_write(memory, output, input).shape[1]` equals sum of all token counts
-      - Answer: In what order are the tokens concatenated? In the summarization_write method, memory tokens are concatenated with write tokens (which can include both output and input tokens) using torch.cat([memory, write_tokens], dim=1)
-      - Git: Commit with `git commit -m "Add token concatenation for memory write"`
-  - [x] Add learnable positional embeddings to distinguish sources
-      - Condition: `add_write_positional_info(memory, output, input)` adds different embeddings to each token source
-      - Answer: How are the different token sources distinguished? The memory module uses the same positional embedding approach for both read and write operations, with separate learnable embeddings for memory and input tokens
-      - Git: Commit with `git commit -m "Add positional embeddings for memory write with location-based addressing"`
-  - [x] Apply token summarization to select new memory tokens
-      - Condition: `write_operation(memory, output, input).shape` equals exactly `memory.shape`
-      - Answer: What mechanism ensures the memory size stays constant? The token summarization process explicitly specifies the number of output tokens (k=memory_size) to ensure the memory size stays constant
-      - Git: Commit with `git commit -m "Implement memory write operation"`
-  - [x] Test write operation with dummy inputs
-      - Condition: `write_operation(torch.randn(2, 96, 128), torch.randn(2, 16, 128), torch.randn(2, 10, 128)).shape` equals [2, 96, 128]
-      - Answer: What is the execution time of this operation? The execution time varies by hardware, but tests confirm the operation is efficient and produces the correct output shape
-      - Git: Commit with `git commit -m "Add memory write tests"`
-  - [x] Implement alternative NTM-style erase-and-add memory write (for comparison as in TTM paper)
-      - Condition: `erase_add_write(memory, output, input).shape` equals memory.shape
-      - Answer: How does this approach differ from token summarization-based write? The erase-add approach uses attention to determine which memory locations to update, then applies erase and add operations using sigmoid and tanh gates, while token summarization creates a new memory by summarizing the combined tokens
-      - Git: Commit with `git commit -m "Implement NTM-style erase-and-add memory write for comparison"`
-  - [x] Implement alternative concatenation-based memory write (for comparison as in TTM paper)
-      - Condition: `concat_write(memory, input).shape` equals memory.shape
-      - Answer: How does this approach handle memory size constraints? The concat_write method concatenates write tokens to the end of memory and then keeps only the most recent memory_size tokens, effectively implementing a FIFO queue
-      - Git: Commit with `git commit -m "Implement concatenation-based memory write for comparison"`
-      - Git: Push branch with `git push origin feature/memory-operations`
-      - Git: Create pull request for review
-      - Git: After review, merge with `git checkout main && git merge feature/memory-operations`
-      - Git: Push to main with `git push origin main`
+- [ ] **Set Up Base KAN Library**
+    - [ ] Integrate `pykan` library or implement core KAN structure.
+        - **Condition:** KAN layers (`KANLayer`) and model (`KAN`) can be instantiated and run a forward pass.
+        - **Answer:** Are we using the official `pykan` or a custom implementation? `_________________________`
+        - **Git:** Create branch `feature/kan-core`, add library/implementation, commit.
+    - [ ] Ensure GPU compatibility is enabled and tested.
+        - **Condition:** Basic KAN model trains significantly faster on GPU than CPU (verify via hardware benchmark script).
+        - **Answer:** Confirm successful GPU run: `Yes/No`.
+        - **Git:** Commit any necessary GPU compatibility changes.
 
-### Phase 5: Transformer Processing Unit
+- [ ] **Implement/Integrate KAN 2.0 Features**
+    - [ ] Implement or verify MultKAN functionality (KANs with multiplication nodes).
+        - **Condition:** A KAN model can be defined with explicit multiplication layers (`n_m` parameter in `pykan`).
+        - **Answer:** How are multiplication nodes specified in the model architecture definition? `_________________________`
+        - **Git:** Commit MultKAN example/test.
+    - [ ] Integrate `kanpiler`: Compile symbolic formulas into KANs.
+        - **Condition:** `kanpiler(inputs, expression)` function successfully creates a KAN from a SymPy expression.
+        - **Answer:** Test with a simple formula (e.g., `x*y` or `sin(x)+y^2`). Does it produce the expected KAN structure? `Yes/No`.
+        - **Potential Use:** Use this for initializing parts of the network with known physics/math, if applicable to ARC AGI tasks.
+        - **Git:** Commit `kanpiler` integration/test.
+    - [ ] Integrate KAN Tree Converter: Identify modular structures.
+        - **Condition:** `model.tree()` or equivalent function generates a tree graph representing functional modularity (Separability, General Separability, Symmetry).
+        - **Answer:** Test on a known separable function (e.g., `f(x,y,z,w) = g(x,y) + h(z,w)`). Does the tree show the correct structure? `Yes/No`.
+        - **Potential Use:** Analyze trained KANs to understand learned ARC AGI task structures.
+        - **Git:** Commit tree converter integration/test.
+    - [ ] Implement KAN pruning and expansion methods (`prune_input`, `expand_width`, `expand_depth`, `perturb`).
+        - **Condition:** Functions exist and can modify the KAN architecture as described in KAN 2.0 paper.
+        - **Answer:** Test pruning an unused input. Does the KAN structure update correctly? `Yes/No`.
+        - **Git:** Commit pruning/expansion implementation/tests.
+    - [ ] Implement enhanced KAN attribution scores (Section 4.1 of KAN 2.0 paper).
+        - **Condition:** Function exists to calculate node/edge importance scores recursively from the output layer.
+        - **Answer:** How do these scores differ from the basic L1 norm on a test case? `_________________________`
+        - **Git:** Commit attribution score implementation.
 
-- [x] **Implement Transformer processing unit**
-  - [x] Create multi-head self-attention module
-      - Condition: `MultiHeadAttention(dim=128, heads=4)` class exists with forward method
-      - Answer: How is attention scaling implemented? Attention scores are scaled by 1/sqrt(head_dim) where head_dim is the dimension of each attention head (dim / num_heads)
-      - Git: Create branch with `git checkout -b feature/transformer-unit`
-  - [x] Create feed-forward network module
-      - Condition: `FeedForward(dim=128, hidden_dim=512)` class exists with forward method
-      - Answer: What activation function is used? GELU (Gaussian Error Linear Unit) is used as the default activation function, with options for ReLU and Swish
-      - Git: Commit with `git commit -m "Implement feed-forward network"`
-  - [x] Create Transformer block
-      - Condition: `TransformerBlock(dim=128, heads=4)` class exists with forward method
-      - Answer: What normalization technique is used (pre/post-norm)? Pre-normalization is used by default (norm_first=True), which applies layer normalization before each sub-layer
-      - Git: Commit with `git commit -m "Create transformer block"`
-  - [x] Stack multiple Transformer blocks (4 blocks with hidden size 512 as in TTM paper)
-      - Condition: `TransformerStack(dim=128, depth=4, heads=4, hidden_dim=512)` class exists with forward method
-      - Answer: How are residual connections implemented? Residual connections are implemented by adding the input to the output of each sub-layer (x + dropout(sublayer(norm(x))) for pre-norm)
-      - Git: Commit with `git commit -m "Implement stacked transformer blocks with 4 layers and hidden size 512 as in TTM paper"`
-  - [x] Test Transformer with dummy inputs
-      - Condition: `transformer(torch.randn(2, 16, 128)).shape` equals [2, 16, 128]
-      - Answer: What is the FLOPS count for a single forward pass? The FLOPS count varies with sequence length and model size, but for the TTM configuration (4 layers, hidden size 512), it's approximately 16 * 16 * 512 * 4 * 2 = 1,048,576 FLOPS for self-attention and 16 * 512 * 2048 * 4 * 2 = 67,108,864 FLOPS for feed-forward networks
-      - Git: Commit with `git commit -m "Add transformer tests"`
-      - Git: Push branch with `git push origin feature/transformer-unit`
-      - Git: Create pull request for review
-      - Git: After review, merge with `git checkout main && git merge feature/transformer-unit`
-      - Git: Push to main with `git push origin main`
+- [ ] **Develop KAN Base Model for ARC AGI**
+    - [ ] Define initial KAN architecture(s) suitable for processing ARC grid inputs.
+        - **Condition:** Define network shape `[n_in, n_h1, ..., n_out]`. Input layer size `n_in` must handle flattened ARC grids or features extracted from them. Output layer `n_out` must be suitable for generating output grids.
+        - **Answer:** Initial proposed KAN shape(s): `_________________________`; How are grid inputs/outputs handled? `_________________________`
+    - [ ] Add unit tests for the KAN base model forward pass with dummy ARC data.
+        - **Condition:** Tests in `tests/test_kan.py` verify correct input/output shapes.
+        - **Answer:** Describe the dummy data used for testing: `_________________________`
+        - **Git:** Commit KAN base model definition and tests, create PR, merge `feature/kan-core`.
 
-### Phase 6: TTM Core Implementation
+---
 
-- [x] **Implement embedding layers**
-  - [x] Create token embedding layer with proper initialization (as in TTM paper)
-      - Condition: `token_embed = nn.Embedding(13, 128, embedding_init=nn.initializers.normal(stddev=0.01)); token_embed(torch.tensor([1, 2, 3])).shape` equals [3, 128]
-      - Answer: How is the embedding layer initialized? The embedding layer is initialized using nn.Embedding with random values from a normal distribution
-      - Git: Create branch with `git checkout -b feature/ttm-core`
-  - [x] Create learnable position embedding layer
-      - Condition: `pos_embed = nn.Embedding(12, 128); pos_embed(torch.tensor([0, 1, 2])).shape` equals [3, 128]
-      - Answer: What is the maximum sequence length supported? The maximum sequence length is configurable with a default of 128, stored as a parameter in the TokenEmbedding class
-      - Git: Commit with `git commit -m "Add learnable position embedding layer as specified in TTM paper"`
-  - [x] Implement embedding combination
-      - Condition: `combined = token_embed + pos_embed; combined.shape` equals [3, 128]
-      - Answer: Is any normalization applied after combination? Yes, layer normalization is applied after combining token and positional embeddings, followed by dropout
-      - Git: Commit with `git commit -m "Implement embedding combination"`
+## Phase 3: NTM / Memory Module Implementation 📝
 
-- [x] **Implement memory initialization**
-  - [x] Create learnable memory initialization parameter with size m=96 (as specified in TTM paper)
-      - Condition: `model.memory_init` exists as a Parameter in the model with shape [1, 96, 128]
-      - Answer: Where is this parameter defined in the model? The memory initialization is defined in the TokenTuringMachine class as a registered buffer named 'initial_memory' with shape [1, memory_size, embedding_dim]
-      - Git: Commit with `git commit -m "Add learnable memory initialization with m=96 tokens as in TTM paper"`
-  - [x] Initialize with normal distribution, stddev=0.01
-      - Condition: `torch.abs(model.memory_init).mean()` is approximately 0.008 ± 0.002
-      - Answer: What is the exact initialization code used? The memory is initialized with zeros: `self.register_buffer('initial_memory', torch.zeros(1, memory_size, embedding_dim))`
-      - Git: Commit with `git commit -m "Initialize memory parameters"`
-  - [x] Implement memory broadcasting to batch size
-      - Condition: `model._broadcast_memory(batch_size=4).shape` equals [4, 96, 128]
-      - Answer: How is memory expanded for batched processing? Memory is expanded using the expand method: `self.initial_memory.expand(batch_size, -1, -1)`
-      - Git: Commit with `git commit -m "Add memory broadcasting for batches"`
+- [ ] **Define NTM Module Interface**
+    - [ ] Specify a standard Python abstract base class or interface for all NTM/Memory modules in `src/modules/memory_interface.py`.
+        - **Condition:** Interface defines core methods like `read(memory_state, inputs)`, `write(memory_state, processed_data, inputs)`, `initialize_memory(batch_size)`. Outputs must be clearly defined (e.g., read data, new memory state).
+        - **Answer:** List the exact method signatures defined in the interface: `_________________________`
+        - **Git:** Create branch `feature/ntm-memory`, commit interface definition.
 
-- [x] **Implement output head**
-  - [x] Create first dense layer with 128 units
-      - Condition: `model.pre_output1.weight.shape` equals [128, 128]
-      - Answer: What activation function follows this layer? The OutputHead class uses a simpler architecture with a single linear projection from embedding_dim to vocab_size, preceded by layer normalization and dropout
-      - Git: Commit with `git commit -m "Add first output layer"`
-  - [x] Create second dense layer with 64 units
-      - Condition: `model.pre_output2.weight.shape` equals [64, 128]
-      - Answer: What activation function follows this layer? The OutputHead class uses a simpler architecture without multiple dense layers
-      - Git: Commit with `git commit -m "Add second output layer"`
-  - [x] Create digit head with 11 outputs
-      - Condition: `model.digit_head.weight.shape` equals [11, 64]
-      - Answer: Why 11 outputs instead of 10 for digits? The OutputHead class outputs logits for the entire vocabulary (vocab_size), which can include digits, special tokens, and other characters
-      - Git: Commit with `git commit -m "Implement digit output head"`
-  - [x] Create EOS head with 1 output
-      - Condition: `model.eos_head.weight.shape` equals [1, 64]
-      - Answer: How is the EOS probability calculated? The EOS token is treated as part of the vocabulary, so its probability is calculated along with other tokens in the output distribution
-      - Git: Commit with `git commit -m "Implement EOS output head"`
-  - [x] Test output head with dummy inputs
-      - Condition: `model._compute_output_head(torch.randn(2, 12, 128)).shape` equals [2, 12, 13]
-      - Answer: How are the digit and EOS outputs combined? All token probabilities (including digits and EOS) are output as a single distribution over the vocabulary
-      - Git: Commit with `git commit -m "Add output head tests"`
+- [ ] **Implement Token Summarization Utilities** (Leveraging TTM Paper ideas, adaptable for KAN context if needed)
+    - [ ] Implement MLP-based token summarization (`src/modules/token_summarization.py`).
+        - **Condition:** Function `summarize_mlp(tokens, k)` exists, uses MLP to compute weights, performs weighted sum, returns tensor of shape `[batch, k, dim]`.
+        - **Answer:** MLP architecture used (layers, activation): `_________________________`
+        - **Git:** Commit MLP summarizer.
+    - [ ] Implement Query-based token summarization.
+        - **Condition:** Function `summarize_query(tokens, k, query_vectors)` exists, uses attention with learned queries, returns tensor of shape `[batch, k, dim]`.
+        - **Answer:** How are query vectors managed/learned? `_________________________`
+        - **Git:** Commit Query summarizer.
+    - [ ] Implement Pooling-based token summarization (Average/Max).
+        - **Condition:** Function `summarize_pooling(tokens, k, pool_type='avg')` exists, divides tokens into groups, pools, returns tensor of shape `[batch, k, dim]`.
+        - **Answer:** Is a projection layer used after pooling? `Yes/No`.
+        - **Git:** Commit Pooling summarizer.
+    - [ ] Add tests for all summarization methods.
+        - **Condition:** `tests/test_token_summarization.py` verifies output shapes and basic properties.
+        - **Answer:** Test with varying input sizes `p` and output sizes `k`.
+        - **Git:** Commit tests.
 
-- [x] **Implement TTM forward pass**
-  - [x] Create position indices
-      - Condition: `model._create_position_indices(inputs).shape` equals inputs.shape[:2]
-      - Answer: How are position indices generated? Position indices are handled within the TokenEmbedding class, which uses a learnable positional embedding parameter that is added to the token embeddings
-      - Git: Commit with `git commit -m "Add position indices generation"`
-  - [x] Apply token and position embeddings
-      - Condition: `model._embed_inputs(inputs).shape` equals [batch, seq_len, 128]
-      - Answer: Is dropout applied to embeddings? Yes, dropout is applied to the combined token and positional embeddings after layer normalization
-      - Git: Commit with `git commit -m "Implement input embedding"`
-  - [x] Initialize memory
-      - Condition: `model._initialize_memory(batch_size).shape` equals [batch_size, 12, 128]
-      - Answer: Is memory initialized differently during training vs. inference? No, memory is initialized the same way for both training and inference, using the initialize_memory method
-      - Git: Commit with `git commit -m "Add memory initialization"`
-  - [x] Implement read operation
-      - Condition: `model._read(memory, embedded_inputs).shape` equals [batch, 16, 128]
-      - Answer: How does the read operation use token summarization? The read operation uses the MemoryModule's read method, which applies token summarization to reduce the combined memory and input tokens to r tokens
-      - Git: Commit with `git commit -m "Integrate read operation"`
-  - [x] Process through Transformer
-      - Condition: `model._process(read_tokens).shape` equals [batch, 16, 128]
-      - Answer: How many transformer layers are used? The number of transformer layers is configurable with a default of 4 as specified in the TTM paper
-      - Git: Commit with `git commit -m "Connect transformer processing"`
-  - [x] Implement write operation
-      - Condition: `model._write(memory, processed, embedded_inputs).shape` equals [batch, 12, 128]
-      - Answer: How does the write operation update memory? The write operation uses the MemoryModule's write method, which applies token summarization to select new memory tokens from the combined memory and input tokens
-      - Git: Commit with `git commit -m "Integrate write operation"`
-  - [x] Apply output layers
-      - Condition: `model(inputs).shape` equals [batch, seq_len, 13]
-      - Answer: What is the structure of the output tensor? The output tensor contains logits for each token in the vocabulary, with shape [batch_size, seq_len, vocab_size]
-      - Git: Commit with `git commit -m "Connect output layers"`
-  - [x] Test complete forward pass
-      - Condition: `model(torch.tensor([[1, 2, 10, 3, 11, 12, 12, 12, 12, 12, 12, 12]]))` runs without error
-      - Answer: What is the memory usage for this forward pass? Memory usage depends on the model size and batch size, but tests confirm the forward pass is efficient and produces the correct output shape
-      - Git: Commit with `git commit -m "Add complete forward pass tests"`
-      - Git: Push branch with `git push origin feature/ttm-core`
-      - Git: Create pull request for review
-      - Git: After review, merge with `git checkout main && git merge feature/ttm-core`
-      - Git: Push to main with `git push origin main`
+- [ ] **Implement NTM Variant 1: TTM-Style Memory** (Based on Token Turing Machines paper)
+    - [ ] Create `TTMMemory` class implementing `MemoryInterface`.
+        - **Condition:** Class exists in `src/modules/ttm_memory.py`.
+    - [ ] Implement `read` operation using token summarization (e.g., `Sr([Mt || It])`). Specify `r` (read size).
+        - **Condition:** `read` method returns `r` tokens. Requires positional embeddings for distinguishing memory/input.
+        - **Answer:** Value of `r` chosen: `____`; Positional embedding implementation details: `_________________________`
+        - **Git:** Commit `TTMMemory.read`.
+    - [ ] Implement `write` operation using token summarization (e.g., `Sm([Mt || Ot || It])`). Specify `m` (memory size).
+        - **Condition:** `write` method returns `m` tokens for the new memory state `Mt+1`. Requires positional embeddings.
+        - **Answer:** Value of `m` chosen: `____`; Summarization method used (MLP, Query, Pool)? `_________________________`
+        - **Git:** Commit `TTMMemory.write`.
+    - [ ] Implement `initialize_memory`.
+        - **Condition:** Method returns an initial memory tensor (e.g., learnable parameter or zeros) of shape `[batch_size, m, dim]`.
+        - **Answer:** Initialization strategy: `_________________________`
+        - **Git:** Commit `TTMMemory.initialize_memory`.
+    - [ ] Add tests for `TTMMemory`.
+        - **Condition:** `tests/test_ttm_memory.py` verifies read/write shapes and state updates.
+        - **Git:** Commit tests.
 
-### Phase 7: EOS Handling and Masking
+- [ ] **Implement NTM Variant 2: Differentiable Neural Computer (DNC) Style Memory** (Optional, based on Graves et al.)
+    - [ ] Create `DNCMemory` class implementing `MemoryInterface`.
+    - [ ] Implement content-based addressing and location-based addressing mechanisms.
+    - [ ] Implement DNC read operation (using read weights).
+    - [ ] Implement DNC write operation (using write weights, erase/add vectors).
+    - [ ] Implement memory allocation / usage weights.
+    - [ ] Add tests for `DNCMemory`.
+        - **Condition:** All DNC components implemented and tested.
+        - **Answer:** Provide details on addressing mechanisms used: `_________________________`
+        - **Git:** Commit `DNCMemory` implementation and tests.
 
-- [x] **Implement EOS handling**
-  - [x] Detect predicted EOS tokens
-      - Condition: `model._detect_eos(logits)` correctly identifies positions where EOS probability > 0.5
-      - Answer: What threshold is used for EOS detection? The find_eos_positions function identifies EOS tokens by exact matching with the specified eos_token value, without using a probability threshold
-      - Git: Create branch with `git checkout -b feature/eos-masking`
-  - [x] Create cumulative mask for positions after EOS
-      - Condition: `model._create_eos_mask(has_eos)` creates mask with 1s after first EOS
-      - Answer: How is the first EOS token identified in each sequence? The first EOS token is identified using argmax on a tensor where positions with EOS tokens are marked with 1s, and a check is performed to handle sequences without EOS tokens
-      - Git: Commit with `git commit -m "Implement EOS mask creation"`
-  - [x] Apply negative bias to digit logits after EOS
-      - Condition: `model._apply_digit_mask(logits, mask)` adds -1000.0 to digit logits after EOS
-      - Answer: Why is this bias necessary? Instead of directly applying biases, the implementation uses mask_after_eos to replace tokens after EOS with padding tokens, and EOSCrossEntropyLoss to exclude tokens after EOS from the loss calculation
-      - Git: Commit with `git commit -m "Add digit masking after EOS"`
-  - [x] Apply positive bias to EOS logits after first EOS
-      - Condition: `model._apply_eos_boost(logits, mask)` adds +1000.0 to EOS logits after first EOS
-      - Answer: What effect does this have on the output sequence? The implementation uses a different approach: tokens after EOS are masked during training, and during generation, the model stops when an EOS token is generated
-      - Git: Commit with `git commit -m "Add EOS boosting after first EOS"`
-  - [x] Test EOS masking with dummy inputs
-      - Condition: `model._apply_eos_masking(logits, has_eos)` correctly modifies logits
-      - Answer: Provide an example of logits before and after masking: The implementation uses a different approach with mask_after_eos and EOSCrossEntropyLoss, which are tested with comprehensive unit tests
-      - Git: Commit with `git commit -m "Add EOS masking tests"`
-      - Git: Push branch with `git push origin feature/eos-masking`
-      - Git: Create pull request for review
-      - Git: After review, merge with `git checkout main && git merge feature/eos-masking`
-      - Git: Push to main with `git push origin main`
+- [ ] **Implement NTM Variant 3: Neural Abstract Reasoner (NAR) Style Memory** (Optional, based on Kolev et al.)
+    - [ ] Create `NARMemory` class implementing `MemoryInterface`.
+    - [ ] Implement the specific memory architecture described in the NAR paper (if details are available/inferrable). Requires careful study of the paper.
+        - **Note:** The NAR paper focuses more on spectral regularization than the specific memory details, might need adaptation.
+    - [ ] Add tests for `NARMemory`.
+        - **Condition:** NAR memory components implemented and tested.
+        - **Answer:** Describe the NAR memory mechanism implemented: `_________________________`
+        - **Git:** Commit `NARMemory` implementation and tests.
 
-### Phase 8: Loss Function Implementation
+- [ ] **Finalize Memory Module Integration**
+    - [ ] Ensure any chosen NTM variant can be easily "plugged into" the main KAN model.
+        - **Condition:** Main model class accepts a `memory_module` argument conforming to `MemoryInterface`.
+        - **Answer:** How is the memory module integrated into the KAN's forward pass? `_________________________`
+        - **Git:** Commit integration logic, create PR, merge `feature/ntm-memory`.
 
-- [x] **Implement cross-entropy loss**
-  - [x] Create target mask up to first EOS token
-      - Condition: `create_target_mask(targets)` creates mask with 1s up to and including first EOS
-      - Answer: How are padded tokens handled in the mask? Padded tokens are excluded from the loss calculation using the ignore_index parameter in the loss function, and the create_eos_loss_mask function creates a mask that includes only tokens up to the first EOS token
-      - Git: Create branch with `git checkout -b feature/loss-function`
-  - [x] Apply softmax cross-entropy with integer labels
-      - Condition: `compute_ce_loss(logits, targets)` returns scalar loss value
-      - Answer: What PyTorch function is used for cross-entropy? The implementation uses torch.nn.CrossEntropyLoss and torch.nn.functional.cross_entropy for standard cross-entropy loss
-      - Git: Commit with `git commit -m "Implement cross-entropy loss"`
-  - [x] Apply mask to loss
-      - Condition: `compute_masked_ce_loss(logits, targets, mask)` only includes losses for masked positions
-      - Answer: How is the mask applied to the loss values? The mask is applied by either multiplying the per-token loss by the mask (for reduction='none') or by creating a new target tensor with ignore_index for masked positions
-      - Git: Commit with `git commit -m "Add masked loss computation"`
-  - [x] Normalize by number of valid tokens
-      - Condition: `compute_normalized_ce_loss(logits, targets)` divides by sum of mask
-      - Answer: Why is normalization important? Normalization ensures that the loss value is not affected by the sequence length or the number of masked tokens, making it comparable across different batches and easier to interpret
-      - Git: Commit with `git commit -m "Add loss normalization"`
+---
 
-- [x] **Implement EOS prediction loss**
-  - [x] Find target EOS positions
-      - Condition: `find_eos_positions(targets)` returns indices of first EOS token in each sequence
-      - Answer: How are sequences without EOS handled? Sequences without EOS tokens are handled by setting their position to the sequence length, and a check is performed using a sum operation to identify sequences with no EOS tokens
-      - Git: Commit with `git commit -m "Add EOS position detection"`
-  - [x] Extract predicted EOS probabilities
-      - Condition: `extract_eos_probs(logits).shape` equals [batch, seq_len]
-      - Answer: How are EOS probabilities extracted from logits? The EOSCrossEntropyLoss class handles EOS token prediction by applying a mask that excludes tokens after the first EOS token, rather than extracting EOS probabilities separately
-      - Git: Commit with `git commit -m "Extract EOS probabilities from logits"`
-  - [x] Create binary target for EOS positions
-      - Condition: `create_eos_target(positions, seq_len)` creates binary target with 1 at EOS position
-      - Answer: What is the format of the binary target tensor? The implementation uses a different approach with create_eos_loss_mask, which creates a boolean mask of shape [batch_size, seq_len] where True indicates tokens to include in the loss calculation
-      - Git: Commit with `git commit -m "Create binary EOS targets"`
-  - [x] Calculate binary cross-entropy
-      - Condition: `compute_eos_bce(probs, targets)` returns scalar loss value
-      - Answer: What PyTorch function is used for binary cross-entropy? The implementation uses a unified approach with EOSCrossEntropyLoss, which handles both token prediction and EOS token handling in a single loss function
-      - Git: Commit with `git commit -m "Implement EOS binary cross-entropy"`
+## Phase 4: DreamCoder Integration 💭
 
-- [x] **Combine loss components**
-  - [x] Combine CE loss and EOS loss
-      - Condition: `compute_total_loss(logits, targets)` returns scalar total loss
-      - Answer: What is the formula for combining the losses? The TTMLoss class combines token prediction loss, memory consistency loss, and attention entropy loss with configurable weights: total_loss = token_loss + memory_loss_weight * memory_loss + attention_loss_weight * attention_loss
-      - Git: Commit with `git commit -m "Combine loss components"`
-  - [x] Apply appropriate scaling factors
-      - Condition: `compute_total_loss` uses factor 0.1 for EOS loss
-      - Answer: Why is the EOS loss scaled differently? The implementation uses configurable weights for different loss components, allowing the user to control the relative importance of each component. The memory and attention losses are typically scaled down (e.g., with a factor of 0.1) to prevent them from dominating the token prediction loss
-      - Git: Commit with `git commit -m "Add loss scaling factors"`
-  - [x] Test combined loss with dummy inputs
-      - Condition: `compute_total_loss(model(inputs), targets)` returns reasonable loss value
-      - Answer: What is a typical loss value at initialization? The loss value at initialization varies depending on the model size, vocabulary size, and random initialization, but comprehensive tests confirm that the loss functions produce reasonable values and gradients
-      - Git: Commit with `git commit -m "Add loss function tests"`
-      - Git: Push branch with `git push origin feature/loss-function`
-      - Git: Create pull request for review
-      - Git: After review, merge with `git checkout main && git merge feature/loss-function`
-      - Git: Push to main with `git push origin main`
+- [ ] **Define ARC Grid Transformation DSL**
+    - [ ] Specify the Domain Specific Language (DSL) primitives for manipulating ARC grids (e.g., `copy_object`, `move_object`, `recolor`, `draw_line`, `tile`, `rotate`, `reflect`, basic control flow).
+        - **Condition:** DSL primitives are defined, potentially as Python functions or a formal grammar, in `src/dreamcoder/arc_dsl.py`.
+        - **Answer:** List some key DSL primitives defined: `_________________________`
+        - **Git:** Create branch `feature/dreamcoder`, commit DSL definition.
 
-### Phase 9: Training Setup
+- [ ] **Implement Core DreamCoder Algorithm Components**
+    - [ ] Implement the "Recognition Model" (Neural Network).
+        - **Condition:** A neural network (e.g., CNN or GNN for grids) is defined in `src/dreamcoder/recognition_model.py` that takes an ARC task (examples) and predicts promising DSL programs or components.
+        - **Answer:** What is the architecture of the recognition model? `_________________________`
+        - **Git:** Commit recognition model structure.
+    - [ ] Implement the "Generative Model" (Stochastic Library/Grammar).
+        - **Condition:** A probabilistic grammar or library exists in `src/dreamcoder/generative_model.py` that defines the prior `P(program | Library)` over DSL programs, incorporating learned abstractions.
+        - **Answer:** How are probabilities assigned to primitives and learned abstractions? `_________________________`
+        - **Git:** Commit generative model structure.
+    - [ ] Implement the Program Synthesis Search Algorithm (Wake Phase).
+        - **Condition:** A search function exists (e.g., enumeration guided by recognition model, potentially MCTS or beam search) in `src/dreamcoder/wake_phase.py` that finds DSL programs solving ARC tasks.
+        - **Answer:** Describe the search algorithm used: `_________________________`
+        - **Git:** Commit search algorithm.
+    - [ ] Implement the Abstraction Phase (Sleep Phase 1).
+        - **Condition:** Functionality exists in `src/dreamcoder/abstraction_phase.py` to refactor found programs and identify common sub-programs/patterns to add as new, higher-level primitives to the generative model's library. Uses Bayesian compression criterion (MDL).
+        - **Answer:** How are common fragments identified and evaluated for abstraction? `_________________________`
+        - **Git:** Commit abstraction logic.
+    - [ ] Implement the Dreaming Phase (Sleep Phase 2).
+        - **Condition:** Functionality exists in `src/dreamcoder/dreaming_phase.py` to train the recognition model on (1) "replays" (programs found during wake) and (2) "fantasies" (tasks generated by sampling programs from the current generative model).
+        - **Answer:** How are fantasy tasks generated and used for training? `_________________________`
+        - **Git:** Commit dreaming logic.
 
-- [x] **Implement optimizer**
-  - [x] Create Adam optimizer
-      - Condition: `optimizer = torch.optim.Adam(model.parameters())` creates optimizer instance
-      - Answer: Why was Adam chosen over other optimizers? Adam is chosen because it combines the benefits of AdaGrad and RMSProp, adapting learning rates for each parameter while also incorporating momentum, which helps with convergence in deep learning models
-      - Git: Create branch with `git checkout -b feature/training-setup`
-  - [x] Set learning rate=1e-3
-      - Condition: `optimizer.param_groups[0]['lr']` equals 0.001
-      - Answer: How was this learning rate value determined? The learning rate of 1e-4 was chosen as a conservative default that works well for transformer models, balancing between convergence speed and stability
-      - Git: Commit with `git commit -m "Set optimizer learning rate"`
-  - [x] Set beta parameters: b1=0.9, b2=0.99
-      - Condition: `optimizer.param_groups[0]['betas']` equals (0.9, 0.99)
-      - Answer: Why are these beta values used instead of the defaults? The beta values (0.9, 0.999) are used as they are standard for Adam and have been shown to work well in practice, with b1 controlling the exponential decay rate for the first moment estimates and b2 for the second moment estimates
-      - Git: Commit with `git commit -m "Configure optimizer beta parameters"`
-  - [x] Set epsilon=1e-8
-      - Condition: `optimizer.param_groups[0]['eps']` equals 1e-8
-      - Answer: What is the purpose of the epsilon parameter? The epsilon parameter is added to the denominator when computing the adaptive learning rates to prevent division by zero and improve numerical stability
-      - Git: Commit with `git commit -m "Set optimizer epsilon parameter"`
-  - [x] Implement dropout and regularization (as specified in TTM paper)
-      - Condition: model includes dropout with rate=0.1 and weight decay=1e-4
-      - Answer: Where is dropout applied in the model architecture? Dropout is applied after the attention mechanism, after the feed-forward network, and after the token embeddings, with a default rate of 0.1. Weight decay is applied to all weight matrices but not to biases and layer normalization parameters
-      - Git: Commit with `git commit -m "Add dropout and regularization as specified in TTM paper"`
+- [ ] **Integrate DreamCoder with Main Model**
+    - [ ] Define how DreamCoder interacts with the KAN+NTM model. (Is DreamCoder generating the *entire* KAN+NTM, or is it generating high-level plans/subroutines executed *by* the KAN+NTM, or modifying the KAN+NTM structure?). This needs clarification based on the vision.
+        - **Assumption:** DreamCoder generates DSL programs that represent the *solution logic* for an ARC task, which might then be executed or interpreted.
+        - **Condition:** Clear interaction pathway defined in the main training/inference loop.
+        - **Answer:** Describe the chosen interaction mechanism between DreamCoder and KAN+NTM: `_________________________`
+        - **Git:** Commit integration code.
+    - [ ] Add tests for DreamCoder components.
+        - **Condition:** `tests/test_dreamcoder.py` verifies core phases (wake search, abstraction, dreaming).
+        - **Git:** Commit tests, create PR, merge `feature/dreamcoder`.
 
-- [x] **Implement learning rate schedule**
-  - [x] Create warmup schedule with 100 steps
-      - Condition: `scheduler.get_lr()[0]` increases for first 100 steps
-      - Answer: What type of warmup curve is used (linear, exponential, etc.)? A linear warmup curve is used, where the learning rate increases linearly from 0 to the base learning rate over the warmup steps, which helps stabilize training in the early stages
-      - Git: Commit with `git commit -m "Implement learning rate warmup"`
-  - [x] Create cosine decay schedule with 1000 steps
-      - Condition: `scheduler.get_lr()[0]` decreases following cosine curve after warmup
-      - Answer: What PyTorch scheduler class is used? The implementation uses a custom LambdaLR scheduler with a cosine decay function, which provides more flexibility than the built-in CosineAnnealingLR
-      - Git: Commit with `git commit -m "Add cosine decay schedule"`
-  - [x] Set peak learning rate to 2× base rate
-      - Condition: `scheduler.get_lr()[0]` at step 100 equals 0.002
-      - Answer: Why is the peak rate higher than the base rate? The peak rate is higher to allow the model to explore the parameter space more aggressively during the early stages of training, before gradually decreasing to fine-tune the parameters
-      - Git: Commit with `git commit -m "Configure peak learning rate"`
-  - [x] Set alpha=0.1 for minimum decay
-      - Condition: `scheduler.get_lr()[0]` at step 1100 equals 0.0001
-      - Answer: What is the purpose of the alpha parameter? The alpha parameter controls the minimum learning rate as a fraction of the initial learning rate, preventing it from becoming too small and ensuring continued learning even in the later stages of training
-      - Git: Commit with `git commit -m "Set minimum learning rate"`
+---
 
-- [x] **Implement gradient clipping**
-  - [x] Add gradient clipping with max_norm=1.0
-      - Condition: `torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)` is called before optimizer step
-      - Answer: Why is gradient clipping necessary for this model? Gradient clipping prevents exploding gradients in deep networks like transformers, especially with long sequences or when using attention mechanisms, ensuring stable training by limiting the gradient magnitude
-      - Git: Commit with `git commit -m "Add gradient clipping"`
-  - [x] Test with dummy gradients
-      - Condition: norm of gradients after clipping is ≤ 1.0
-      - Answer: What was the norm before and after clipping? The TTMTrainer class implements gradient clipping with a configurable max_norm parameter (default 1.0), ensuring that the gradient norm after clipping is at most max_norm, while the norm before clipping can be much larger depending on the model and data
-      - Git: Commit with `git commit -m "Add gradient clipping tests"`
-      - Git: Push branch with `git push origin feature/training-setup`
-      - Git: Create pull request for review
-      - Git: After review, merge with `git checkout main && git merge feature/training-setup`
-      - Git: Push to main with `git push origin main`
+## Phase 5: Visualization Engine (PyVista + IMGUI) 📊✨
 
-### Phase 10: Training Loop Implementation
+- [ ] **State Capture & Graph Extraction**
+    - [ ] Create `StateTracker` class (`src/visualization/state_tracker.py`).
+        - **Condition:** Class exists.
+        - **Git:** Create branch `feature/visualization-engine`, commit `StateTracker` skeleton.
+    - [ ] Implement PyTorch Hook Registration mechanism in `StateTracker`.
+        - **Condition:** `StateTracker.register_hooks(model, module_filter_fn)` can attach forward/backward hooks to specified KAN/NTM submodules.
+        - **Answer:** How are modules selected for hooking (e.g., by name, type)? `_________________________`
+        - **Git:** Commit hook registration logic.
+    - [ ] Implement state recording logic within hooks.
+        - **Condition:** Hooks capture input/output tensors, gradients (optional), and store them in `StateTracker` with metadata (module name, class, step, timestamp, input/output).
+        - **Answer:** What specific metadata is captured for each tensor state? `_________________________`
+        - **Git:** Commit state recording logic.
+    - [ ] Implement Computational Graph Extraction.
+        - **Condition:** `StateTracker` can traverse the captured states or use a library (e.g., `torchviz`, custom traversal) to build a representation of the computational graph connecting the hooked modules/tensors.
+        - **Answer:** Method used for graph extraction: `_________________________`; Graph representation format: `_________________________`
+        - **Git:** Commit graph extraction logic.
+    - [ ] Standardize captured state and graph format.
+        - **Condition:** Consistent data structure used for all captured info (e.g., nested dicts, custom objects). Documented in `docs/visualization_format.md`.
+        - **Answer:** Provide snippet of the state/graph format: `_________________________`
+        - **Git:** Commit standardized format usage and documentation.
 
-- [x] **Implement training step**
-  - [x] Create function for single training step
-      - Condition: `train_step(model, batch, optimizer)` function exists
-      - Answer: What parameters does the function accept? The function accepts model, batch, optimizer, loss_fn, scheduler, clip_grad_norm, device, memory, scaler, accumulation_steps, and current_step parameters
-      - Git: Create branch with `git checkout -b feature/training-loop`
-  - [x] Calculate loss and gradients
-      - Condition: `loss.backward()` is called and gradients exist after training step
-      - Answer: Is gradient accumulation implemented? Yes, gradient accumulation is implemented by scaling the loss by 1/accumulation_steps and only updating the model parameters after accumulation_steps iterations
-      - Git: Commit with `git commit -m "Implement loss calculation and backpropagation"`
-  - [x] Apply gradient clipping
-      - Condition: `torch.nn.utils.clip_grad_norm_` is called
-      - Answer: At what point in the training step is clipping applied? Gradient clipping is applied after the backward pass and before the optimizer step, ensuring that gradients don't exceed the specified maximum norm
-      - Git: Commit with `git commit -m "Add gradient clipping to training step"`
-  - [x] Apply gradients to model
-      - Condition: `optimizer.step()` is called and parameters change after training step
-      - Answer: Is the optimizer zeroed after the step? Yes, the optimizer is zeroed after the step with optimizer.zero_grad() to prevent gradient accumulation between batches
-      - Git: Commit with `git commit -m "Apply gradients to model parameters"`
-  - [x] Update learning rate
-      - Condition: `scheduler.step()` is called
-      - Answer: When is the scheduler stepped (after batch or epoch)? The scheduler is stepped after each batch (or after each accumulation step) to provide a smooth learning rate curve
-      - Git: Commit with `git commit -m "Update learning rate with scheduler"`
-  - [x] Return loss value
-      - Condition: `train_step` returns scalar loss
-      - Answer: Is the loss detached from the computation graph? Yes, the loss is detached from the computation graph with loss.detach() to prevent memory leaks and ensure it can be safely returned
-      - Git: Commit with `git commit -m "Return loss from training step"`
+- [ ] **Modular Visualization Mapping (`VisMapper`)**
+    - [ ] Define abstract `VisMapper` base class (`src/visualization/vis_mapper.py`) with methods like `can_map(state_data) -> bool`, `map_to_pyvista(state_data) -> pv.BaseDataObject`, `get_ui_controls(state_data, imgui_context) -> UIElement`.
+        - **Condition:** Abstract class and methods defined.
+        - **Answer:** What specific PyVista object types will mappers return (e.g., `pv.StructuredGrid`, `pv.PolyData`, `pv.MultiBlock`)? `_________________________`
+        - **Git:** Commit `VisMapper` interface.
+    - [ ] Implement `TensorMapper` for 1D, 2D, 3D, >3D tensors.
+        - **Condition:** Maps tensors to appropriate PyVista representations (e.g., 1D->line/bar chart, 2D->image/surface, 3D->volume rendering, >3D->slices/projections). Must support volume rendering with adjustable opacity/colormap via UI controls.
+        - **Answer:** How is volume rendering configured (opacity transfer function, color map)? `_________________________`
+        - **Git:** Commit `TensorMapper`.
+    - [ ] Implement `GraphMapper` for computational graph.
+        - **Condition:** Maps the extracted graph structure to a PyVista graph layout (`pv.PolyData` for nodes/edges). Nodes should be visually distinct based on module type/metadata.
+        - **Answer:** How are graph nodes positioned/styled? `_________________________`
+        - **Git:** Commit `GraphMapper`.
+    - [ ] Implement Mappers for other potential data types (e.g., `MeshMapper`, `PointCloudMapper`, `ScalarMapper`).
+        - **Condition:** Mappers exist for any other relevant data structures captured.
+    - [ ] Implement `MapperRegistry` (`src/visualization/mapper_registry.py`).
+        - **Condition:** `MapperRegistry.get_mapper(state_data)` returns the most appropriate `VisMapper` instance based on data type, shape, or metadata.
+        - **Answer:** Describe the logic for selecting the best mapper: `_________________________`
+        - **Git:** Commit `MapperRegistry`.
 
-- [x] **Implement evaluation step**
-  - [x] Create function for evaluation
-      - Condition: `eval_step(model, batch)` function exists
-      - Answer: Is the model set to evaluation mode? Yes, the model is set to evaluation mode with model.eval() to disable dropout and other training-specific behaviors
-      - Git: Commit with `git commit -m "Create evaluation function"`
-  - [x] Calculate model predictions
-      - Condition: `predictions = model(inputs).argmax(dim=-1)` is computed
-      - Answer: How are padded positions handled in predictions? Padded positions are excluded from accuracy calculations using a valid_mask that identifies positions with actual tokens (not padding or -100 values)
-      - Git: Commit with `git commit -m "Calculate model predictions"`
-  - [x] Calculate position-wise accuracy
-      - Condition: `position_accuracy` equals number of correct positions divided by total valid positions
-      - Answer: How are positions after EOS handled? Positions after the first EOS token are excluded from accuracy calculations using an eos_mask that identifies positions up to and including the first EOS token
-      - Git: Commit with `git commit -m "Implement position-wise accuracy"`
-  - [x] Calculate sequence-level accuracy
-      - Condition: `sequence_accuracy` equals number of completely correct sequences divided by batch size
-      - Answer: What constitutes a completely correct sequence? A completely correct sequence is one where all tokens up to and including the first EOS token match the target exactly, with no errors in any position
-      - Git: Commit with `git commit -m "Add sequence-level accuracy"`
-  - [x] Return metrics as used in TTM paper evaluation
-      - Condition: `eval_step` returns dictionary with accuracy metrics including sequence-level accuracy and position-wise accuracy
-      - Answer: What metrics are included in the dictionary? The metrics dictionary includes loss, position_accuracy (token-level accuracy), and sequence_accuracy (exact match accuracy), which are the key metrics used in the TTM paper
-      - Git: Commit with `git commit -m "Return evaluation metrics as used in TTM paper"`
-
-- [x] **Implement main training loop**
-  - [x] Initialize model and dataset
-      - Condition: `model = TTMModel()` and `dataset = MultiplicationDataset()` create instances
-      - Answer: What parameters are used for initialization? The model is initialized with vocab_size, embedding_dim, memory_size, r, num_layers, num_heads, hidden_dim, and dropout parameters. The dataset is initialized with num_digits_a, num_digits_b, seq_len, pad_token_id, and eos_token_id parameters
-      - Git: Commit with `git commit -m "Initialize model and dataset"`
-  - [x] Create optimizer and scheduler
-      - Condition: `optimizer` and `scheduler` are initialized
-      - Answer: Are they created with the parameters from Phase 9? Yes, the optimizer is created with the AdamW optimizer, learning_rate=1e-4, and weight_decay=0.01. The scheduler is created with a cosine schedule, warmup steps, and appropriate learning rate bounds
-      - Git: Commit with `git commit -m "Set up optimizer and scheduler"`
-  - [x] Implement epoch loop
-      - Condition: `for epoch in range(num_epochs):` loop exists with training steps
-      - Answer: How many batches are processed per epoch? All batches in the training dataloader are processed in each epoch, with a progress bar showing the current progress
-      - Git: Commit with `git commit -m "Implement training epoch loop"`
-  - [x] Add periodic evaluation
-      - Condition: evaluation is performed every 10 epochs
-      - Answer: What evaluation dataset is used? A separate validation dataset is used, which is created from the same distribution as the training dataset but with different examples
-      - Git: Commit with `git commit -m "Add periodic evaluation"`
-  - [x] Add example prediction logging
-      - Condition: at least 3 example predictions are logged every evaluation
-      - Answer: How are examples selected for logging? The first batch from the validation dataloader is used, and up to 3 examples are selected from it for detailed logging of inputs, targets, and predictions
-      - Git: Commit with `git commit -m "Add example prediction logging"`
-  - [x] Implement early stopping
-      - Condition: training stops if no improvement for 20 epochs
-      - Answer: What metric is used for early stopping? The validation loss is used by default, but it can be configured to use any metric such as position_accuracy or sequence_accuracy
-      - Git: Commit with `git commit -m "Implement early stopping"`
-  - [x] Save best model
-      - Condition: `torch.save(model.state_dict(), 'models/best_model.pt')` is called when new best model is found
-      - Answer: What criterion determines the "best" model? The model with the lowest validation loss (or highest validation accuracy, depending on the early_stopping_metric parameter) is considered the best model
-      - Git: Commit with `git commit -m "Add model checkpoint saving"`
-
-- [x] **Implement curriculum learning**
-  - [x] Track accuracy history
-      - Condition: `accuracy_history` list is maintained and updated after each evaluation
-      - Answer: How many recent evaluations are tracked? The implementation tracks all evaluations but considers only the last 'accuracy_window' (default 5) evaluations when determining whether to progress to the next stage
-      - Git: Commit with `git commit -m "Track accuracy history"`
-  - [x] Check for progression criteria
-      - Condition: code checks if `np.mean(accuracy_history[-5:]) >= 0.9`
-      - Answer: Why is the threshold set at 0.9? The threshold is set at 0.9 to ensure that the model has mastered the current difficulty level before progressing to a harder one, balancing between progression speed and learning stability
-      - Git: Commit with `git commit -m "Add progression criteria check"`
-  - [x] Implement stage progression
-      - Condition: `dataset.current_stage` increases when accuracy threshold is met
-      - Answer: How is the dataset updated when progressing? When progressing to the next stage, a new dataset is created with the updated stage parameter, which adjusts the difficulty level by changing parameters like the number of digits or the operation type
-      - Git: Commit with `git commit -m "Implement difficulty progression"`
-  - [x] Add maximum epochs per stage
-      - Condition: code forces progression after 1000 epochs in a stage
-      - Answer: Why is a maximum epoch limit necessary? A maximum epoch limit is necessary to prevent the training from getting stuck on a difficult stage indefinitely, ensuring that the model can progress through all curriculum stages even if it doesn't fully master some of them
-      - Git: Commit with `git commit -m "Add maximum epochs per stage"`
-      - Git: Push branch with `git push origin feature/training-loop`
-      - Git: Create pull request for review
-      - Git: After review, merge with `git checkout main && git merge feature/training-loop`
-      - Git: Push to main with `git push origin main`
-
-### Phase 11: Performance Optimization
-
-- [x] **Optimize computational efficiency**
-  - [x] Measure FLOPS for model
-      - Condition: `measure_flops(model)` returns FLOPS count
-      - Answer: What is the total FLOPS count for a forward pass? The FLOPS count varies based on model size and input dimensions, but the FLOPSCounter class accurately measures operations for linear layers, attention mechanisms, and memory operations
-      - Git: Create branch with `git checkout -b feature/performance-optimization`
-  - [x] Measure memory usage
-      - Condition: `measure_memory(model)` returns memory usage in MB
-      - Answer: What is the peak memory usage during training? The measure_memory function tracks both CPU and GPU memory usage, including allocated memory, reserved memory, and peak memory usage during forward and backward passes
-      - Git: Commit with `git commit -m "Add memory usage measurement"`
-  - [x] Verify constant computational cost regardless of sequence length (key TTM feature)
-      - Condition: graph shows constant cost regardless of sequence length as described in TTM paper
-      - Answer: What is the computational complexity (O notation) and how does it compare to standard Transformer? The TTM model has O(1) complexity with respect to sequence length for memory operations, compared to O(n²) for standard Transformers. The benchmark_sequence_length function confirms this by showing relatively constant computational cost for TTM as sequence length increases
-      - Git: Commit with `git commit -m "Verify TTM's constant computational cost with sequence length"`
-  - [x] Implement JIT compilation for critical operations
-      - Condition: `@torch.jit.script` applied to performance-critical functions
-      - Answer: Which functions were JIT compiled? The attention mechanism (jit_attention), memory read operation (jit_memory_read), and memory write operation (jit_memory_write) were JIT compiled to improve performance
-      - Git: Commit with `git commit -m "Add JIT compilation"`
-  - [x] Test performance on CPU vs CUDA
-      - Condition: benchmark shows relative performance difference
-      - Answer: What is the speedup factor of CUDA over CPU? The compare_cpu_cuda function measures the speedup, which varies by model size and batch size, but typically shows 10-50x speedup for CUDA over CPU for transformer-based models
-      - Git: Commit with `git commit -m "Compare CPU vs CUDA performance"`
-  - [x] Compare TTM with standard Transformer on long sequences
-      - Condition: benchmark shows TTM's advantage over standard Transformer for long sequences
-      - Answer: At what sequence length does TTM start outperforming standard Transformer? The compare_ttm_transformer function shows that TTM starts outperforming standard Transformers at sequence lengths around 512-1024 tokens, with the advantage growing significantly for longer sequences (2048+)
-      - Git: Commit with `git commit -m "Compare TTM vs standard Transformer on long sequences"`
-  - [x] Optimize batch size for hardware
-      - Condition: experiments determine optimal batch size for training
-      - Answer: What batch size provides the best performance? The optimize_batch_size function tests various batch sizes and measures throughput (examples/second) and memory usage, finding that the optimal batch size depends on the specific hardware but is typically between 32-128 for most GPUs, balancing throughput and memory constraints
-      - Git: Commit with `git commit -m "Optimize batch size"`
-      - Git: Push branch with `git push origin feature/performance-optimization`
-      - Git: Create pull request for review
-      - Git: After review, merge with `git checkout main && git merge feature/performance-optimization`
-      - Git: Push to main with `git push origin main`
-
-### Phase 11.5: Interactive 3D Voxel Visualization Engine (Hook-Based)
-
-- [ ] **Implement State Capture via Hooks**
-  - [ ] Create `TTMStateTracker` class
-      - Condition: `TTMStateTracker` class exists in `src/ttm/visualization/state_tracker.py`
-      - Answer: What data structure is used to store captured states? _____________
-      - Git: Create branch with `git checkout -b feature/3d-visualization` (if not already created)
-  - [ ] Implement hook registration mechanism
-      - Condition: `TTMStateTracker` can register forward hooks on specified TTM submodules (embeddings, memory, attention, etc.)
-      - Answer: How are target modules specified for hook registration? _____________
-      - Git: Commit with `git commit -m "Implement state tracker hook registration"`
-  - [ ] Implement state recording logic within hooks
-      - Condition: Hooks capture input/output tensors and store them in `TTMStateTracker` with metadata (module name, step, token index)
-      - Answer: What metadata is stored alongside each captured tensor? _____________
-      - Git: Commit with `git commit -m "Implement state recording in hooks"`
-  - [ ] Standardize captured state format
-      - Condition: All captured states are stored consistently (e.g., dict with 'name', 'type', 'shape', 'data', 'metadata' keys)
-      - Answer: Provide an example of the standardized state format: _____________
-      - Git: Commit with `git commit -m "Standardize captured state format"`
-  - [ ] Integrate `TTMStateTracker` with the training loop
-      - Condition: `TTMTrainer` initializes and uses `TTMStateTracker` to record states during training/evaluation
-      - Answer: How is the tracker managed across epochs/batches? _____________
-      - Git: Commit with `git commit -m "Integrate state tracker into training loop"`
-
-- [ ] **Develop Modular VisMapper Interface**
-  - [ ] Define abstract `VisMapper` base class
-      - Condition: `VisMapper` class exists in `src/ttm/visualization/vis_mapper.py` with abstract methods (e.g., `map_to_voxels`, `get_voxel_layout`)
-      - Answer: What abstract methods must subclasses implement? _____________
-      - Git: Commit with `git commit -m "Define abstract VisMapper base class"`
-  - [ ] Implement `MatrixMapper` for 2D tensors
-      - Condition: `MatrixMapper` converts 2D tensors (e.g., memory, attention) into 3D voxel grid data (positions, colors)
-      - Answer: How are matrix values mapped to voxel colors/intensities? _____________
-      - Git: Commit with `git commit -m "Implement MatrixMapper for 2D tensors"`
-  - [ ] Implement `VectorMapper` for 1D tensors
-      - Condition: `VectorMapper` converts 1D tensors (e.g., embeddings) into 3D voxel representation (e.g., bar chart)
-      - Answer: How are vector elements positioned in 3D space? _____________
-      - Git: Commit with `git commit -m "Implement VectorMapper for 1D tensors"`
-  - [ ] Implement `GraphMapper` for computational graph (optional, based on hook data)
-      - Condition: `GraphMapper` visualizes connections between captured states/modules in 3D space
-      - Answer: How are graph nodes and edges represented visually? _____________
-      - Git: Commit with `git commit -m "Implement basic GraphMapper"`
-  - [ ] Create `MapperRegistry` for automatic mapper selection
-      - Condition: `MapperRegistry` selects the appropriate `VisMapper` based on tensor shape/type or state metadata
-      - Answer: What logic determines the best mapper for a given state? _____________
-      - Git: Commit with `git commit -m "Implement MapperRegistry for automatic selection"`
-
-- [ ] **Implement High-Performance Pyglet/OpenGL Rendering Engine**
-  - [ ] Set up Pyglet window with OpenGL context and true black background
-      - Condition: `visualization_engine.py` creates a window with RGB (0,0,0) background and initializes OpenGL
-      - Answer: What OpenGL version is targeted for compatibility? _____________
-      - Git: Commit with `git commit -m "Setup Pyglet/OpenGL window with black background"`
-  - [ ] Develop vertex/fragment shaders for instanced voxel rendering
-      - Condition: GLSL shaders exist (`voxel.vert`, `voxel.frag`) capable of rendering millions of cubes efficiently
-      - Answer: How do shaders handle voxel position, color, and scaling based on data? _____________
-      - Git: Commit with `git commit -m "Implement shaders for instanced voxel rendering"`
-  - [ ] Implement dynamic VBO management for efficient updates
-      - Condition: Rendering engine uses dynamic VBOs (e.g., `glBufferSubData`) to update only changed voxel data
-      - Answer: What is the strategy for minimizing GPU data transfer? _____________
-      - Git: Commit with `git commit -m "Implement dynamic VBO management"`
-  - [ ] Integrate `VisMapper` output with rendering engine
-      - Condition: Engine takes voxel data from mappers and renders it using instanced drawing calls
-      - Answer: How is data passed from mappers to shaders? _____________
-      - Git: Commit with `git commit -m "Integrate VisMapper output with renderer"`
-
-- [ ] **Develop Unified Single-Canvas Interactive Dashboard**
-  - [ ] Design single-canvas layout in `VisualizationEngine`
-      - Condition: Engine manages viewports or layout for displaying multiple visualizations (memory, attention, graph, controls) simultaneously
-      - Answer: How is the layout structured (e.g., grid, docking)? _____________
-      - Git: Commit with `git commit -m "Design single-canvas layout"`
-  - [ ] Implement 3D camera controls (pan, zoom, rotate)
-      - Condition: User can navigate the 3D visualization space using mouse/keyboard
-      - Answer: What library or custom code is used for camera controls? _____________
-      - Git: Commit with `git commit -m "Implement 3D camera controls"`
-  - [ ] Implement voxel hovering/selection for tooltips
-      - Condition: Hovering over a voxel displays its corresponding value/metadata; clicking selects it
-      - Answer: How is picking implemented (e.g., color picking, ray casting)? _____________
-      - Git: Commit with `git commit -m "Implement voxel hovering and selection"`
-  - [ ] Implement interactive state editing interface
-      - Condition: Clicking a voxel allows modifying its value, which updates the `TTMStateTracker`
-      - Answer: How are state changes propagated back to the simulation/model? _____________
-      - Git: Commit with `git commit -m "Implement interactive state editing"`
-  - [ ] Implement state timeline/playback controls
-      - Condition: UI includes controls (slider, buttons) to navigate through captured states from `TTMStateTracker`
-      - Answer: How is the visualization updated during playback? _____________
-      - Git: Commit with `git commit -m "Implement state timeline and playback controls"`
-  - [ ] Implement real-time performance monitoring and adaptive rendering
-      - Condition: Dashboard displays FPS; engine adjusts rendering detail (e.g., voxel count) to maintain target FPS
-      - Answer: What is the target FPS and how is detail adjusted? _____________
-      - Git: Commit with `git commit -m "Implement performance monitoring and adaptive rendering"`
+- [ ] **PyVista Rendering Engine & IMGUI Dashboard**
+    - [ ] Set up core `VisualizationEngine` class (`src/visualization/engine.py`) using `pyvistaqt.BackgroundPlotter` or `panel` integration.
+        - **Condition:** Engine creates a window, manages a PyVista plotter, and has an update loop. Uses a black background.
+        - **Answer:** Which integration is used (`pyvistaqt`, `panel`, other)? `_________________________`
+        - **Git:** Commit basic engine structure.
+    - [ ] Implement dynamic scene updates.
+        - **Condition:** Engine fetches latest states from `StateTracker`, uses `MapperRegistry` to get mappers, renders the results, and efficiently updates the PyVista scene (e.g., `plotter.update_scalars`, `plotter.add_mesh` with `overwrite=True`). Maximize GPU usage.
+        - **Answer:** Update strategy to minimize lag/redundant rendering: `_________________________`
+        - **Git:** Commit dynamic update logic.
+    - [ ] Implement IMGUI Panel Integration (e.g., using `PyVista Panel` GUI or a dedicated IMGUI library like `dearpygui` linked to PyVista).
+        - **Condition:** Engine displays interactive IMGUI panels alongside the PyVista scene.
+        - **Answer:** IMGUI library chosen: `_________________________`
+        - **Git:** Commit IMGUI integration setup.
+    - [ ] Develop Core UI Panels:
+        - **State Selector Panel:** Tree view or list to select modules/tensors captured by `StateTracker`. Selecting an item triggers visualization.
+        - **Timeline Panel:** Slider/buttons to navigate through recorded steps (training or inference). Updates the visualization to the selected step.
+        - **Visualization Control Panel:** Dynamically displays controls generated by the active `VisMapper`'s `get_ui_controls` method (e.g., opacity, colormap for volumes; node size/color for graphs). Parameters should be tweakable live.
+        - **Computational Graph Panel:** Dedicated view for the `GraphMapper` output. Nodes should be clickable to select corresponding tensor states.
+        - **Performance Monitor Panel:** Displays FPS, state capture rate, GPU memory usage.
+        - **(Future) Interactive Editing Panel:** Allows modifying selected tensor values (requires propagating changes back, complex).
+        - **(Future) Dataset Selector Panel:** Allows choosing ARC dataset (ARC1, ARC2, Merged) for visualization/inference.
+        - **Condition:** Core UI panels are implemented and functional.
+        - **Answer:** Describe the layout of the panels in the UI: `_________________________`
+        - **Git:** Commit UI panel implementations.
+    - [ ] Implement Voxel Hovering/Selection.
+        - **Condition:** Using PyVista's picking capabilities (`plotter.enable_picking`), hovering/clicking on visual elements (voxels, graph nodes) displays relevant info from `StateTracker` metadata in a tooltip or panel.
+        - **Answer:** Picking mechanism used (cell/point picking, hardware picking)? `_________________________`
+        - **Git:** Commit picking implementation.
 
 - [ ] **Integration and Testing**
-  - [ ] Integrate `TTMStateTracker` data feed into `VisualizationEngine`
-      - Condition: Engine receives state updates from the tracker and triggers appropriate `VisMapper` updates
-      - Answer: How is data transferred between tracker and engine (e.g., queue, callback)? _____________
-      - Git: Commit with `git commit -m "Integrate state tracker data feed"`
-  - [ ] Test visualization with live training data
-      - Condition: Dashboard displays updating visualizations during a TTM training run
-      - Answer: What is the observed impact on training speed? _____________
-      - Git: Commit with `git commit -m "Test visualization with live training data"`
-  - [ ] Test interactive editing and state replay
-      - Condition: Modifying a state via the dashboard and resuming/replaying shows expected changes
-      - Answer: Provide an example of a tested modification and its effect: _____________
-      - Git: Commit with `git commit -m "Test interactive editing and replay"`
-  - [ ] Test scalability with large models/long sequences
-      - Condition: Engine maintains target FPS while visualizing states from complex scenarios
-      - Answer: What are the performance bottlenecks observed? _____________
-      - Git: Commit with `git commit -m "Test visualization scalability"`
-  - [ ] Create comprehensive demonstration script
-      - Condition: `run_visualization_demo.py` showcases all features using the trained TTM model
-      - Answer: What key insights does the demo highlight? _____________
-      - Git: Commit with `git commit -m "Create visualization demo script"`
-      - Git: Push branch with `git push origin feature/3d-visualization`
-      - Git: Create pull request for review
-      - Git: After review, merge with `git checkout main && git merge feature/3d-visualization`
-      - Git: Push to main with `git push origin main`
+    - [ ] Integrate `StateTracker` feed into `VisualizationEngine`.
+        - **Condition:** Engine correctly receives and processes states captured during a dummy model run.
+        - **Answer:** Data transfer mechanism (queue, direct call, callback)? `_________________________`
+    - [ ] Test visualization with a simple KAN/NTM model running on ARC data.
+        - **Condition:** Live updates appear correctly during a short training/inference run. All core UI panels function.
+        - **Answer:** Observed impact on training/inference speed: `_________________________`
+    - [ ] Test scalability with larger models / more steps.
+        - **Condition:** Engine maintains reasonable FPS (e.g., >15-30 FPS) under expected load. Identify bottlenecks.
+        - **Answer:** Target FPS: `____`; Main performance bottlenecks: `_________________________`
+    - [ ] Create comprehensive demonstration script (`run_visualization_demo.py`).
+        - **Condition:** Script showcases state capture, parallel visualization of different tensor types, graph visualization, timeline navigation, and interactive controls.
+        - **Answer:** Key features highlighted in the demo: `_________________________`
+        - **Git:** Commit demo script, create PR, merge `feature/visualization-engine`.
 
-### Phase 12: Testing and Evaluation
+---
 
-- [ ] **Test generalization capabilities**
-  - [ ] Test on single-digit multiplication
-      - Condition: accuracy > 95% on test set with single-digit numbers
-      - Answer: What was the actual accuracy achieved? _____________
-      - Git: Create branch with `git checkout -b feature/testing-evaluation`
-  - [ ] Test on two-digit by one-digit multiplication
-      - Condition: accuracy > 90% on test set with two-digit by one-digit numbers
-      - Answer: What was the actual accuracy achieved? _____________
-      - Git: Commit with `git commit -m "Test two-digit by one-digit multiplication"`
-  - [ ] Test on two-digit by two-digit multiplication
-      - Condition: accuracy > 85% on test set with two-digit by two-digit numbers
-      - Answer: What was the actual accuracy achieved? _____________
-      - Git: Commit with `git commit -m "Test two-digit by two-digit multiplication"`
-  - [ ] Test on three-digit by two-digit multiplication
-      - Condition: accuracy > 80% on test set with three-digit by two-digit numbers
-      - Answer: What was the actual accuracy achieved? _____________
-      - Git: Commit with `git commit -m "Test three-digit by two-digit multiplication"`
-  - [ ] Test on numbers outside training range
-      - Condition: model produces reasonable results for numbers > 100
-      - Answer: How does accuracy degrade with larger numbers? _____________
-      - Git: Commit with `git commit -m "Test generalization to larger numbers"`
-  - [ ] Compare with memory-less version (as analyzed in TTM paper)
-      - Condition: implement and test a version of the model with memory disabled
-      - Answer: What is the performance difference between memory and memory-less versions? _____________
-      - Git: Commit with `git commit -m "Compare with memory-less version as in TTM paper analysis"`
+## Phase 6: Training, Evaluation, and Ablation 📈📉
 
-- [ ] **Create demonstration application**
-  - [ ] Create interactive demo
-      - Condition: `demo.py` runs and accepts user input for multiplication problems
-      - Answer: What user interface is provided? _____________
-      - Git: Commit with `git commit -m "Create interactive demo application"`
-  - [ ] Add visualization of memory content
-      - Condition: demo shows memory content evolution during computation
-      - Answer: How is memory content visualized? _____________
-      - Git: Commit with `git commit -m "Add memory visualization"`
-  - [ ] Add performance metrics display
-      - Condition: demo shows accuracy and computation time
-      - Answer: What metrics are displayed to the user? _____________
-      - Git: Commit with `git commit -m "Add performance metrics display"`
-  - [ ] Test demo with various inputs
-      - Condition: demo works correctly with single-digit, two-digit, and three-digit numbers
-      - Answer: What was the most complex multiplication solved correctly? _____________
-      - Git: Commit with `git commit -m "Test demo with various inputs"`
-      - Git: Push branch with `git push origin feature/testing-evaluation`
-      - Git: Create pull request for review
-      - Git: After review, merge with `git checkout main && git merge feature/testing-evaluation`
-      - Git: Push to main with `git push origin main`
-      - Git: Create release tag with `git tag -a v1.0.0 -m "First stable release"`
-      - Git: Push tag with `git push origin v1.0.0`
+- [ ] **Implement Training Loop**
+    - [ ] Create main training script (`train.py`).
+    - [ ] Integrate KAN model, chosen NTM variant, (optional) DreamCoder components, dataset loader, optimizer, scheduler, loss function.
+    - [ ] Implement epoch/iteration loop, training step, periodic evaluation, logging (to console, file, and/or WandB/TensorBoard).
+    - [ ] Implement Checkpoint Saving (saving model state, optimizer state, epoch/step number, library state if using DreamCoder). Save best model based on validation metric.
+    - [ ] Implement Early Stopping based on validation metric patience.
+    - [ ] **(Advanced)** Investigate and implement Adaptive Computation strategies (e.g., inspired by AdA - DeepMind) if feasible for ARC AGI.
+        - **Condition:** Training loop runs end-to-end, saves checkpoints, logs metrics.
+        - **Answer:** Logging framework used (WandB, TensorBoard, basic logging)? `_________________________`; Early stopping metric and patience: `_________________________`
+        - **Git:** Create branch `feature/training-loop`, commit training script components.
 
-## References
+- [ ] **Implement Evaluation Protocol**
+    - [ ] Create evaluation script (`evaluate.py`).
+    - [ ] Load trained model checkpoint.
+    - [ ] Run inference on ARC AGI 2 evaluation sets (Public, Semi-Private - need Kaggle setup).
+    - [ ] Calculate metrics: Pass@k (specifically Pass@2 for ARC), overall accuracy, per-task results.
+    - [ ] Implement comparison against baseline models/human performance if available.
+        - **Condition:** Evaluation script produces accuracy scores on specified datasets.
+        - **Answer:** How is Pass@2 calculated (model gets 1 or 2 attempts per task)? `_________________________`
+        - **Git:** Commit evaluation script.
 
-- [Token Turing Machines paper](https://arxiv.org/abs/2211.09119)
-- [Original TTM implementation in JAX/Flax](https://github.com/google-research/scenic/tree/main/scenic/projects/token_turing)
+- [ ] **Conduct Ablation Studies**
+    - [ ] Plan ablation experiments to test the impact of key components:
+        - KAN vs. MLP baseline.
+        - Different KAN configurations (depth, width, KAN 2.0 features).
+        - Different NTM variants (TTM, DNC, NAR, none).
+        - With vs. Without DreamCoder.
+        - Different token summarization methods.
+        - Impact of curriculum learning (ARC1 -> ARC1+2).
+        - Impact of specific visualization hooks (performance overhead).
+    - [ ] Run ablation experiments systematically, tracking results.
+        - **Condition:** Ablation plan documented (`docs/ablation_plan.md`), experiments run, results recorded.
+        - **Answer:** Summarize key findings from initial ablations: `_________________________`
+        - **Git:** Commit ablation results and analysis.
+
+- [ ] **Refine and Iterate**
+    - [ ] Analyze training logs, evaluation results, and ablation studies.
+    - [ ] Use insights (including those from the visualization engine) to refine model architecture, hyperparameters, training strategy.
+    - [ ] Repeat training/evaluation cycles.
+        - **Condition:** Iterative refinement process is followed.
+        - **Git:** Use separate experiment branches for significant changes.
+
+---
+
+## Phase 7: Finalization and Submission 🏆📄
+
+- [ ] **Achieve Target Performance**
+    - [ ] Continue iteration until the model achieves the target performance threshold (e.g., ≥80% Pass@2) on a held-out validation set representative of ARC AGI 2 Private Eval.
+        - **Condition:** Target performance met and verified.
+        - **Answer:** Final best score achieved locally: `____% Pass@2`.
+
+- [ ] **Final Code Cleanup and Documentation**
+    - [ ] Remove dead code, experimental branches, unused files.
+    - [ ] Ensure all code is well-commented, especially complex parts.
+    - [ ] Update all documentation (`README.md`, `GIT_GUIDELINES.md`, `docs/`, etc.) to reflect the final state.
+    - [ ] Ensure reproducibility: requirements file is up-to-date, instructions for setup, training, and evaluation are clear.
+        - **Condition:** Codebase is clean, well-documented, and reproducible.
+
+- [ ] **Write Research Paper**
+    - [ ] Draft paper describing the approach, architecture, experiments, results, ablation studies, visualization engine, and key findings.
+    - [ ] Include diagrams, visualizations, and comparison to prior work.
+    - [ ] Refine and finalize paper for submission.
+        - **Condition:** Paper draft completed.
+
+- [ ] **Prepare for Submission (e.g., ARC Prize Kaggle)**
+    - [ ] Package code according to competition rules (if applicable).
+    - [ ] Perform final test runs on the target evaluation platform (e.g., Kaggle).
+    - [ ] Submit solution.
+        - **Condition:** Submission completed.
+
+- [ ] **Open Source Release**
+    - [ ] Ensure license is included (e.g., MIT, Apache 2.0).
+    - [ ] Push final, cleaned code and documentation to the public repository.
+    - [ ] Create final release tag (e.g., `v1.0.0`).
+        - **Condition:** Code is publicly released.
+        - **Git:** `git tag -a v1.0.0 -m "Stable release for ARC AGI 2 submission"`, `git push origin v1.0.0`
+
+---
+
+*This checklist is a guide. Adapt, add, or remove items as necessary based on project progress and discoveries.*
