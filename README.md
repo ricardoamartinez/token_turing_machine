@@ -226,451 +226,541 @@ This document outlines the full implementation plan, workflow, and technical che
 ## Guiding Principles Details
 
 ### Modularity Principles
-- **Definition:** Each major functional block (KAN processing, NTM variant, Token Summarization, DreamCoder components, Visualization Mapper) must be implemented as a distinct Python class or module.
-- **Interface:** Modules must interact *only* through pre-defined Abstract Base Classes (ABCs) or clearly documented function signatures specified in designated interface files (e.g., `src/modules/memory_interface.py`).
-- **Hot-Swapping:** It should be possible to switch between different implementations of an interface (e.g., swapping `TTMMemory` for `DNCMemory`) by changing only configuration files or initialization parameters in the main script, without modifying the core model logic that *uses* the module.
-- **Testing:** Each module must have dedicated unit tests (`tests/test_module_name.py`) that test its functionality in isolation, mocking its dependencies if necessary. **Condition:** `pytest tests/test_module_name.py` passes for the module.
+- **Definition:** Each major functional block (KAN processing, NTM variant, Token Summarization, DreamCoder components, Visualization Mapper) must be implemented as a distinct Python class or module within the `src/` directory (e.g., `src/models/kan/`, `src/modules/memory/`, `src/dreamcoder/`, `src/visualization/mappers/`).
+- **Interface:** Modules must interact *only* through pre-defined Abstract Base Classes (ABCs) located in shared interface files (e.g., `src/modules/memory_interface.py`, `src/visualization/vis_mapper_interface.py`). Interfaces must use type hinting (`typing` module) for all arguments and return values. Docstrings must clearly explain the purpose and expected behavior of each interface method.
+- **Hot-Swapping:** Configuration files (e.g., YAML using `pyyaml` or Python dicts in `src/config.py`) must allow specifying which implementation class to use for each interface (e.g., `memory_module: 'TTMMemory'` vs. `memory_module: 'DNCMemory'`). The main model/training script must dynamically import and instantiate the correct class based on this configuration. Switching implementations requires *only* changing the config value.
+- **Testing:** Each module must have a corresponding test file in `tests/` (e.g., `tests/modules/memory/test_ttm_memory.py`). Tests must use `pytest` and `unittest.mock` (if needed) to test module logic in isolation. **Condition:** Running `pytest tests/modules/module_name/` passes with >= 90% line coverage for the module (measured using `pytest-cov`).
 
 ### Visualization Engine Principles
-- **Real-time:** The visualization must update dynamically during training and inference with minimal performance impact. **Condition:** Target <15% overhead on training step time when visualization hooks are active compared to inactive. Measure using `timeit` or profiling.
-- **Comprehensive:** Capture and visualize *all* relevant intermediate tensor states (activations, optionally gradients) from user-selected modules via hooks. **Condition:** `StateTracker` successfully captures data from designated KAN layers, NTM read/write heads, etc. during a test run.
-- **Interactive Debugging:** Allow users to inspect tensor values (via hovering/selection), understand the computational graph flow, control visualization parameters (opacity, colormaps, slice indices) live via IMGUI panels, and navigate through time steps without writing new code. **Condition:** All core UI panels are functional and interactive during a live visualization session.
-- **Extensible Mapping:** Easily add new `VisMapper` implementations for custom data types or visualization styles by subclassing `VisMapper` and registering with `MapperRegistry`. **Condition:** Adding a new dummy mapper requires minimal code changes outside the mapper class itself.
-- **GPU Accelerated:** Leverage PyVista/VTK's capabilities for efficient rendering. **Condition:** Volume rendering of a moderately sized tensor (e.g., 64x64x64) maintains interactive framerates (>15 FPS) on target hardware.
+- **Real-time:** Measure training step time with hooks disabled vs. enabled using `time.perf_counter()` over ~100 steps. **Condition:** Average step time with hooks enabled is less than 1.15x the average time with hooks disabled. Optimize hook data capture (e.g., selective tensor cloning, non-blocking transfer if using multiprocessing).
+- **Comprehensive:** Define a list of target module types/names for state capture (e.g., KAN layers, Attention heads, NTM read/write outputs). **Condition:** During a test run with visualization, the `StateTracker` history contains entries corresponding to *all* specified target modules for each executed step. Verify captured tensor shapes match expectations.
+- **Interactive Debugging:** **Condition:** During a live visualization, the user can: (1) Select a module in the tree, see its tensor visualized. (2) Hover over a voxel/node, see correct metadata tooltip. (3) Drag the timeline slider, see the visualization update to the corresponding step. (4) Change a control in the Vis Controls panel (e.g., colormap), see the visualization update instantly.
+- **Extensible Mapping:** **Condition:** Create a simple `DummyMapper(VisMapper)` that maps scalar data to a `pv.Sphere`. Register it. Run visualization with dummy scalar state. Verify the sphere appears and the registry selected the `DummyMapper`. This process should not require changes to the engine, registry, or other mappers.
+- **GPU Accelerated:** **Condition:** Use `plotter.add_volume()` for 3D tensor rendering. Monitor GPU usage using `nvidia-smi` during visualization. Verify that rendering load is primarily on the GPU, not CPU. Maintain >15 FPS during interaction with a 64^3 volume render.
 
 ### Git Workflow Principles
-- **Consistency:** All collaborators must adhere strictly to the documented branching, commit message, PR, and merge strategies outlined in `GIT_GUIDELINES.md`. **Condition:** PRs failing to meet documented standards (e.g., poor description, wrong commit format) are rejected during review until fixed.
-- **Clarity:** PRs must have clear descriptions linking to the relevant issue(s) or task(s) using GitHub's `#issue-number` syntax. Commit messages must follow the chosen convention. **Condition:** Reviewers check for linked issues and adherence to commit format.
-- **Safety:** Direct pushes to `main` and `develop` branches must be disabled in GitHub repository settings. Merges require specified number of approvals and passing status checks (CI). Force-pushing is disallowed on shared branches (`main`, `develop`). **Condition:** GitHub branch protection rules are configured and active.
-- **Recovery:** Collaborators demonstrate understanding of `git reflog`, `git reset`, `git revert` as documented in `GIT_GUIDELINES.md` when needed. **Condition:** Messy states are resolved following the documented procedures.
+- **Consistency:** All collaborators must adhere strictly to the documented branching, commit message, PR, and merge strategies outlined in `GIT_GUIDELINES.md`. **Condition:** PR reviews actively check for adherence to `GIT_GUIDELINES.md` (branch name, commit messages, description, linked issue). A PR checklist template is added to the repository (`.github/pull_request_template.md`) requiring confirmation of adherence.
+- **Clarity:** **Condition:** All non-trivial PRs must link to at least one GitHub Issue using `Fixes #issue-number` or `Related #issue-number` in the description. Commit messages must follow the `<type>(<scope>): <subject>` format of Conventional Commits. Reviewers check for linked issues and adherence to commit format.
+- **Safety:** **Condition:** In GitHub repo settings > Branches > Branch protection rules: `main` and `develop` require status checks to pass (placeholder for CI), require at least 1 approval, disallow force pushes, and optionally require linear history. Attempting a direct push fails. GitHub branch protection rules are configured and active.
+- **Recovery:** **Condition:** A developer facing a complex merge conflict or accidental reset can successfully recover their intended state by following the documented steps for `git reflog`, `git reset`, interactive rebase, or cherry-picking as outlined in `GIT_GUIDELINES.md`. Messy states are resolved following the documented procedures.
 
 ### Evaluation Strategy
-- **Primary Metric:** Pass@2 on the official ARC AGI 2 evaluation sets. **Condition:** Evaluation script correctly calculates and reports Pass@2 scores.
-- **Local Target:** Aim for ≥80% Pass@2 on a local validation set. **Condition:** This target is documented and tracked.
-- **Ablations:** Systematically test the contribution of each major component. **Condition:** Ablation plan exists (`docs/ablation_plan.md`) and results are documented.
-- **Efficiency:** Track computational cost. **Condition:** Training logs and evaluation reports include timing/cost metrics.
+- **Primary Metric:** Pass@2 on official ARC AGI 2 eval sets. **Condition:** `evaluate.py` script calculates this metric by checking if `target == prediction_attempt_1 or target == prediction_attempt_2`.
+- **Local Target:** ≥80% Pass@2 on ARC AGI 2 Public Eval set. **Condition:** This target is explicitly stated in the project goals/README, and evaluation runs track progress towards it.
+- **Ablations:** `docs/ablation_plan.md` exists and lists specific experiments. **Condition:** For each completed ablation, the results (metric scores, charts) are documented and linked from the plan.
+- **Efficiency:** Track cost per task evaluation ($) and/or inference time (ms). **Condition:** Evaluation script logs inference time; cost estimated based on hardware usage/API calls if applicable (relevant for ARC Prize).
 
 ## Phase 0 Details
 
 ### init-repo-create-details
-- **Condition:** Repository exists on GitHub. `git remote -v` shows an `origin` pointing to the correct GitHub URL.
-- **Answer:** URL: `[Insert GitHub Repo URL here]`
+- **Technical Details:** Create repository on GitHub. Clone locally using `git clone <repository-url>`.
+- **Condition:** `git remote -v` output shows: `origin <repository-url> (fetch)` and `origin <repository-url> (push)`.
+- **Answer:** URL: `[Paste Repository URL]`
+- **Question:** Is the repository private or public initially?
 
 ### init-structure-details
-- **Condition:** Running `ls -R` (or equivalent) shows the directories: `src/`, `data/` (empty or with `.gitignore`), `models/` (empty), `notebooks/`, `docs/`, `tests/`, `benchmarks/`. Root `.gitignore` file exists, potentially ignoring `data/*`, `models/*`, `*.pt`, `__pycache__/`, virtual env folders, etc.
-- **Answer:** Directories listed: `src, data, models, notebooks, docs, tests, benchmarks`
+- **Technical Details:** Create directories using `mkdir`. Add empty `.gitkeep` files using `touch <dir>/.gitkeep` to ensure empty directories are tracked by Git. Create a basic `.gitignore` file (e.g., from `gitignore.io` for Python).
+- **Condition:** Running `tree -L 1` (or `ls`) shows `src`, `data`, `models`, `notebooks`, `docs`, `tests`, `benchmarks`. `cat .gitignore` shows relevant patterns like `*.pyc`, `__pycache__/`, `*.pt`, `data/`, `models/`.
+- **Answer:** Directories listed: `src, data, models, notebooks, docs, tests, benchmarks`.
+- **Git:** `git add .gitignore src/ data/ models/ notebooks/ docs/ tests/ benchmarks/`; `git commit -m "feat: Initial project structure and gitignore"`
 
 ### init-push-details
-- **Condition:** The `main` branch on GitHub shows the initial commit with the project structure files (e.g., `.gitkeep`, `.gitignore`). `git status` locally shows `nothing to commit, working tree clean`.
+- **Condition:** Run `git push -u origin main`. Verify on GitHub that the `main` branch exists and contains the committed files. Local `git status` shows `Your branch is up to date with 'origin/main'. nothing to commit, working tree clean`.
 
 ### init-tracker-details
-- **Condition:** A GitHub Project board is created and linked, or the issue template/labeling convention for tasks is defined in `GIT_GUIDELINES.md`.
-- **Answer:** Link/Convention: `[Insert Link or Describe Convention]`
+- **Condition:** GitHub Project board created (kanban style recommended). Link provided. OR `GIT_GUIDELINES.md` has section "Issue Tracking" defining labels like `bug`, `feature`, `enhancement`, `documentation`, `phase-X`, `priority-high/medium/low`.
+- **Answer:** Link/Convention: `[Paste Link to Project Board or Describe Labeling]`
+- **Question:** Who is responsible for maintaining the project board/triaging issues?
 
 ### git-guidelines-doc-details
-- **Condition:** The file `GIT_GUIDELINES.md` exists in the repository root. Running `git log GIT_GUIDELINES.md` shows its commit history.
+- **Technical Details:** Create `GIT_GUIDELINES.md` in the root directory. Add sections for Introduction, Branching Strategy, Commit Messages, Pull Request Process, Merging Strategy, Handling Conflicts, Recovery, Tagging.
+- **Condition:** File exists. `git add GIT_GUIDELINES.md`; `git commit -m "docs: Create initial GIT_GUIDELINES.md"`. PR created from `docs/git-guidelines` branch, reviewed, and merged.
 
 ### git-branching-details
-- **Condition:** `GIT_GUIDELINES.md` contains a "Branching Strategy" section detailing the purpose and lifecycle of `main`, `develop`, `feature/*`, `bugfix/*`, `experiment/*`, `hotfix/*`.
-- **Answer:** Summary: `main` (releases), `develop` (integration), `feature` (dev), `experiment` (research), `bugfix` (fixes on develop), `hotfix` (fixes on main).
+- **Technical Details:** Write content for the "Branching Strategy" section in `GIT_GUIDELINES.md`. Explain `git checkout -b <branch_name>`, typical branch naming.
+- **Condition:** Section exists and clearly defines the purpose of each main branch type.
+- **Answer:** Summary: `main` (stable releases), `develop` (integration), `feature/<issue-id>-<desc>` (dev), `experiment/<idea>` (research), `bugfix/<issue-id>-<desc>` (fixes on develop), `hotfix/<issue-id>-<desc>` (fixes on main).
 
 ### git-pr-details
-- **Condition:** `GIT_GUIDELINES.md` contains a "Pull Request Process" section detailing: descriptive titles/bodies, link issues, minimum # reviewer approvals (e.g., 1), required passing CI checks (e.g., linting, unit tests - placeholder).
-- **Answer:** # Approvals Required: `1`; Designated Reviewers: `[List GitHub Usernames]`
+- **Technical Details:** Write content for "Pull Request Process" in `GIT_GUIDELINES.md`. Mention using GitHub UI. Specify required fields (description, linked issues), review process. Add `.github/pull_request_template.md`.
+- **Condition:** Section and template exist. Template prompts for description, linked issues, testing done, checklist adherence.
+- **Answer:** # Approvals Required: `1`; Initial Reviewers: `[List GitHub Usernames]`
+- **Question:** Will automated CI checks (linting, testing) be added later as a requirement? (Yes)
 
 ### git-commit-convention-details
-- **Condition:** `GIT_GUIDELINES.md` contains a "Commit Messages" section specifying the format (e.g., linking to `conventionalcommits.org`). Provides examples.
+- **Technical Details:** Write "Commit Messages" section in `GIT_GUIDELINES.md`. Link to `conventionalcommits.org`. Provide examples: `feat: Add KAN base model`, `fix: Correct off-by-one error in dataloader`, `docs: Update README`, `test: Add unit tests for NTM read op`, `refactor: Simplify visualization state update`.
+- **Condition:** Section exists, links to standard, provides examples.
 - **Answer:** Link: `https://www.conventionalcommits.org/`
 
 ### git-merge-strategy-details
-- **Condition:** `GIT_GUIDELINES.md` contains a "Merging Strategy" section. Specifies strategy for `feature/*` -> `develop` and `develop` -> `main`.
-- **Answer:** Strategy: `[e.g., Squash and Merge for features, Regular Merge commit for develop->main]`
+- **Technical Details:** Write "Merging Strategy" section in `GIT_GUIDELINES.md`. Explain options (Merge commit, Squash, Rebase). State the chosen strategy for merging PRs into `develop` and `develop` into `main`.
+- **Condition:** Section clearly defines the strategy for different merge scenarios.
+- **Answer:** Strategy: `Squash and Merge for feature/* -> develop; Merge commit for develop -> main; Merge commit for hotfix/* -> main & develop`.
 
 ### git-conflict-resolution-details
-- **Condition:** `GIT_GUIDELINES.md` contains a "Handling Merge Conflicts" section with steps: `git checkout <feature-branch>`, `git fetch origin`, `git merge origin/develop` (or `rebase`), resolve conflicts using specified tool, test changes, `git add .`, `git commit`, `git push`.
-- **Answer:** Recommended Tools: `[e.g., VS Code merge editor]`
+- **Technical Details:** Write "Handling Merge Conflicts" section. Detail steps using `git checkout <feature>`, `git fetch origin`, `git rebase origin/develop` (preferred over merge for cleaner history on features), resolve conflicts in editor, `git add <resolved_files>`, `git rebase --continue`, test, `git push --force-with-lease`. Alternative using `merge` also acceptable if documented.
+- **Condition:** Step-by-step instructions provided for the chosen method (rebase preferred). Recommended tools mentioned.
+- **Answer:** Recommended Tools: `VS Code (built-in 3-way merge editor)`
 
 ### git-recovery-cleanup-details
-- **Condition:** `GIT_GUIDELINES.md` contains a "Recovery and Cleanup" section explaining `git reflog`, `git reset --hard`, `git revert`, policy on force-pushing, and strategy for periodic code cleanup sprints (e.g., identifying and removing dead code).
-- **Answer:** Force-push policy: `Allowed ONLY on personal feature branches AFTER coordinating with collaborators if necessary.`
+- **Technical Details:** Write "Recovery and Cleanup" section. Explain `git reflog` to find lost commits, `git reset --hard <commit>` (use with extreme caution), `git revert <commit>` (safer alternative). Define policy on `git push --force` (discouraged on shared branches, use `--force-with-lease` on own branches). Suggest periodic review of old branches (`git branch -a --merged develop | grep -vE '^\*|develop|main$' | xargs -n 1 git branch -d` cleans up merged branches (use with care).
+- **Condition:** Section explains common recovery commands and force-push policy.
+- **Answer:** Force-push policy: `Allowed ONLY on personal feature branches with --force-with-lease after ensuring no one else pulled the old state.`
 
 ### git-tagging-details
-- **Condition:** `GIT_GUIDELINES.md` contains a "Tagging" section defining format for releases (e.g., `vX.Y.Z` following SemVer) and milestones (e.g., `milestone-phaseX-complete`). Explains `git tag -a <tagname> -m "message"` and `git push origin <tagname>`.
+- **Technical Details:** Write "Tagging" section. Explain semantic versioning (`vMAJOR.MINOR.PATCH`). Show commands `git tag -a v0.1.0 -m "Phase 1 complete"` and `git push origin v0.1.0`. Explain milestone tags.
+- **Condition:** Section defines formats and shows commands.
 - **Answer:** Example Release Tag: `v0.1.0`; Milestone Tag: `milestone-phase0-complete`
 
 ### env-config-details
-- **Condition:** `requirements.txt` (pip) or `environment.yml` (conda) exists, is committed. `cat requirements.txt` (or `environment.yml`) lists specific versions for `python`, `torch`, `torchvision`, `torchaudio`, `pyvista`, `numpy`, `pyvistaqt` (if used), `panel` (if used), `pykan` (if used), `dearpygui` (if used), `pytest`, `flake8`, etc.
-- **Answer:** Python: `3.10.x`; PyTorch: `2.1.x+cu118`; PyVista: `0.4x.y`
+- **Technical Details:** Run `pip freeze > requirements.txt` or `conda env export > environment.yml`. Manually edit the file to pin major/minor versions of critical libraries (torch, pyvista, numpy, pykan, etc.) remove system-specific packages if using conda export. Add libraries needed for all phases: `torch`, `torchvision`, `torchaudio`, `pyvista[all]`, `pyvistaqt` (or `panel`), `numpy`, `pyyaml`, `pykan` (if using lib), `sympy` (for kanpiler), `networkx` (for vis graph), `pytest`, `pytest-cov`, `flake8`, `wandb` (or `tensorboard`), `imgui` (if using `dearpygui` or `imgui-bundle`), `jupyter`.
+- **Condition:** File exists, is committed. Contains specific versions like `torch==2.1.0`, `pyvista==0.42.3`, `numpy==1.26.0`, `pykan==...`. Ensure `pyvista[all]` is used for optional dependencies like `pyvistaqt`/`panel`.
+- **Answer:** Python: `~3.10`; PyTorch: `~2.1+cu118`; PyVista: `~0.42`
 
 ### env-replication-details
-- **Condition:** A collaborator successfully creates the environment using the committed file (`pip install -r requirements.txt` or `conda env create -f environment.yml`) and runs a simple script that imports `torch`, `pyvista`, `numpy` without errors.
-- **Answer:** OS notes: `[e.g., On Windows, may need specific Visual C++ Redistributable for PyVista dependencies.]`
+- **Condition:** Collaborator checks out repo, runs `python -m venv venv; source venv/bin/activate; pip install -r requirements.txt` (or conda equivalent), runs `python -c "import torch; import pyvista; import numpy; print(torch.__version__)"`. Command succeeds and shows expected versions.
+- **Answer:** OS notes: `[Confirm if any platform-specific build tools or libraries are needed for dependencies like VTK/OpenGL. E.g., Linux needs 'sudo apt-get install libgl1-mesa-glx libxrender1']`
 
 ### hw-benchmark-script-details
-- **Condition:** `benchmarks/hardware_test.py` exists. Can be run via `python benchmarks/hardware_test.py`. Script imports necessary libraries, defines benchmark functions for specified ops (e.g., `benchmark_matmul(size)`, `benchmark_kan_forward(model, input_shape)`, `benchmark_pv_volume_render(data)`), runs them on CPU and GPU (if `torch.cuda.is_available()`), prints timing (using `time.perf_counter`) and peak GPU memory (`torch.cuda.max_memory_allocated()`).
-- **Answer:** Ops benchmarked: `Matrix Multiply (1kx1k, 4kx4k), KAN Layer (typical size) forward, PyVista Volume Render (64^3)`
+- **Technical Details:** Create `benchmarks/hardware_test.py`. Use `torch.randn` for data. Use `@profile` decorator (if using `line_profiler` or similar) or `time.perf_counter()` blocks. Include functions testing `torch.matmul`, `kan_layer.forward`, basic NTM read/write ops (using dummy memory module), `pyvista.Plotter().add_volume`. Use `torch.cuda.synchronize()` before stopping timers for GPU ops. Print results clearly, label units (ms, MB).
+- **Condition:** Script runs via `python benchmarks/hardware_test.py`. Output includes timings in ms and peak GPU memory in MB for each benchmarked operation on both CPU and GPU (if available).
+- **Answer:** Ops benchmarked: `MatMul(1k,4k), KAN Layer(128,128), Dummy NTM Read(m=96,n=100,d=128), PV VolumeRender(64^3)`
 
 ### hw-benchmark-run-details
-- **Condition:** A file like `benchmarks/RESULTS.md` exists and contains a table with columns: `Operation | GPU Model | CPU Time (ms) | GPU Time (ms) | GPU Peak Memory (MB)`. Results from running the script on all relevant team hardware are recorded.
-- **Answer:** GPUs Tested: `[e.g., RTX 4080 SUPER, RTX 3090, A100]`
+- **Condition:** `benchmarks/RESULTS.md` exists and contains a Markdown table populated with results from running the script on relevant GPUs. Table is formatted clearly.
+- **Answer:** GPUs Tested: `[List GPUs, e.g., RTX 4080 SUPER, RTX 3090, A100]`
 
 ### hw-choice-doc-details
-- **Condition:** `docs/hardware_choice.md` exists. States the primary GPU chosen for development and minimum required specs (e.g., VRAM amount). Justifies the choice based on benchmark results (e.g., "RTX 4080S chosen for best speed/VRAM balance among available team hardware"). Acknowledges potential differences on other hardware.
-- **Answer:** Chosen GPU: `NVIDIA GeForce RTX 4080 SUPER`; Rationale: `Best performance/VRAM available to core team, meets estimated requirements for KAN+NTM size.`
+- **Condition:** `docs/hardware_choice.md` exists. Contains "Chosen Hardware" and "Rationale" sections. Clearly states the primary dev GPU model and minimum required specs (e.g., VRAM amount). Rationale references specific performance numbers from `benchmarks/RESULTS.md`.
+- **Answer:** Chosen GPU: `NVIDIA GeForce RTX 4080 SUPER (16GB)`; Rationale: `Best performance/VRAM available to core team, meets estimated requirements for KAN+NTM size based on benchmarks (e.g., KAN layer ~X ms, NTM ops ~Y ms).`
 
 ## Phase 1 Details
 
 ### data-acquisition-arc1-details
-- **Condition:** ARC AGI 1 dataset (from `https://github.com/fchollet/ARC`) is downloaded. The `data/training` and `data/evaluation` directories exist locally at the configured path.
+- **Technical Details:** Clone `https://github.com/fchollet/ARC`. Configure `ARC1_DATA_PATH` in `src/config.py` to point to the cloned `/data` directory. Add `data/` (or the specific path) to `.gitignore`.
+- **Condition:** `os.path.exists(config.ARC1_DATA_PATH + '/training')` is `True`. Running `git status` does not show the ARC1 data directory as untracked/modified.
 - **Answer:** ARC1 Path Configured In: `src/config.py` as `ARC1_DATA_PATH`
+- **Question:** Should we store data centrally or expect each dev to download? (Assume each dev downloads, path configured).
 
 ### data-acquisition-arc2-details
-- **Condition:** ARC AGI 2 datasets (Training, Public Eval from `https://arcprize.org/data`) are downloaded. The corresponding directories exist locally at the configured path.
+- **Technical Details:** Download zip files from `https://arcprize.org/data`. Unzip. Configure `ARC2_DATA_PATH` in `src/config.py` to point to the directory containing `arc-agi_training`, `arc-agi_evaluation_public`. Add path to `.gitignore`.
+- **Condition:** `os.path.exists(config.ARC2_DATA_PATH + '/arc-agi_training')` is `True`. Running `git status` does not show the ARC2 data directory.
 - **Answer:** ARC2 Path Configured In: `src/config.py` as `ARC2_DATA_PATH`
 
 ### data-loader-interface-details
-- **Condition:** `src/data/arc_dataloader.py` contains `class ARCDataset(torch.utils.data.Dataset):` which takes `source` and `task_ids` arguments. `__getitem__(self, idx)` returns one task dictionary in the format `{'id': str, 'train': [{'input': np.array, 'output': np.array}, ...], 'test': [{'input': np.array, 'output': np.array}, ...]}`. Grids are represented as NumPy arrays.
-- **Answer:** Internal Representation Confirmed: Yes.
+- **Technical Details:** Implement `ARCDataset` in `src/data/arc_dataloader.py` inheriting `torch.utils.data.Dataset`. `__init__` parses specified source paths, loads task JSON files (using `json` module), stores them in `self.tasks` (list of loaded task dicts). `__len__` returns `len(self.tasks)`. `__getitem__` returns the task dict, converting grids to `np.array(..., dtype=int)`. Extract task ID from filename.
+- **Condition:** `dataset = ARCDataset(source='arc1_training'); task = dataset[0]` returns a dictionary with keys `'id'` (str, filename), `'train'` (list of dicts), `'test'` (list of dicts). Grids are `np.ndarray` with `dtype=int`.
+- **Answer:** Internal Representation Confirmed: `{id: str, train: [{'input': np.ndarray, 'output': np.ndarray}], test: [{'input': np.ndarray, 'output': np.ndarray}]}`
+- **Question:** How to handle potentially different grid sizes within a batch later? (Need custom collate_fn for DataLoader).
 
 ### data-merging-details
-- **Condition:** `ARCDataset` constructor or a separate function handles a list of sources (e.g., `sources=['arc1_train', 'arc2_train']`). It correctly loads tasks from all specified sources and makes them accessible via `__getitem__` and `__len__`.
-- **Answer:** Overlap Handling: `Tasks are assumed unique by filename/path across official datasets. No explicit deduplication implemented initially.`
+- **Technical Details:** Modify `ARCDataset.__init__` to accept `source` as a list (e.g., `['arc1_train', 'arc2_train']`). Loop through sources, determine full path based on source string (e.g., `config.ARC1_DATA_PATH + '/training'` if 'arc1_train'), load all JSONs from that path, append to `self.tasks`.
+- **Condition:** `d1 = ARCDataset(source='arc1_train'); d2 = ARCDataset(source='arc2_train'); d_merged = ARCDataset(source=['arc1_train', 'arc2_train'])`. `len(d_merged)` equals `len(d1) + len(d2)`. Inspecting `d_merged.tasks` shows tasks from both origins.
+- **Answer:** Overlap Handling: `Assumes task filenames are unique identifiers across datasets. No explicit content-based deduplication implemented initially.`
 
 ### data-selection-details
-- **Condition:** `ARCDataset` constructor accepts `source` (str or list) and optional `task_ids` (list of str). If `task_ids` is provided, only those tasks are loaded/accessible from the specified `source`(s).
-- **Answer:** Selection Mechanism: `Constructor arguments 'source' and 'task_ids'.`
+- **Technical Details:** In `ARCDataset.__init__`, after loading all tasks for the specified `source`(s), if `task_ids` argument is not `None`, filter `self.tasks = [t for t in self.tasks if t['id'] in task_ids]`. Ensure `t['id']` extraction from filename is robust.
+- **Condition:** `dataset = ARCDataset(source='arc1_training', task_ids=['007bbfb7.json', '00d62c1b.json'])`. `len(dataset)` is 2. `dataset[0]['id']` and `dataset[1]['id']` match the provided IDs (allow for order difference).
+- **Answer:** Selection Mechanism: `Constructor arguments 'source' (str or list) and 'task_ids' (list or None).`
 
 ### data-tests-details
-- **Condition:** `tests/test_data.py` contains `pytest` tests: `test_load_arc1_task`, `test_load_arc2_task`, `test_merged_dataset_length`, `test_select_by_source`, `test_select_by_ids`. Tests use sample task IDs known to exist. `pytest tests/test_data.py` passes.
-- **Answer:** Scenarios Tested: `Load ARC1 train task, Load ARC2 public eval task, Verify len(merged_set) == len(set1) + len(set2), Verify loading only 'arc1_train' works, Verify loading specific task IDs works.`
+- **Technical Details:** Create `tests/fixtures/data` with minimal example ARC1/ARC2 JSON task files. Use `pytest.mark.parametrize` to test loading different sources and IDs.
+- **Condition:** `pytest tests/test_data.py` passes. Tests cover loading single ARC1 task, single ARC2 task, verifying merged dataset length, selecting only ARC1 source, selecting only specific ARC2 task IDs using fixture data. Test that grid data types are `int`.
+- **Answer:** Scenarios Tested: `Load ARC1 task by ID, Load ARC2 task by ID, Merged length check, Source filtering, ID filtering, Grid dtype check.`
 
 ## Phase 2 Details
 
 ### kan-library-setup-details
-- **Condition:** `import pykan` succeeds OR KAN classes are present in `src/kan/`. `model = KAN([100, 50, 100])` (adjust dims) instantiates. `model(torch.randn(4, 100))` returns output tensor without error.
-- **Answer:** Using: `pykan library` (or specify if custom)
+- **Technical Details:** Add `pykan` to `requirements.txt`. Run `pip install pykan`. Use `from pykan import KAN`.
+- **Condition:** `import pykan` succeeds. `model = KAN([100, 50, 100])` instantiates. `output = model(torch.randn(4, 100))` returns tensor of shape `(4, 100)`.
+- **Answer:** Using: `pykan library`
+- **Question:** Which version of pykan? Should we fork it if modifications are needed? (Start with official pip version).
 
 ### kan-gpu-test-details
-- **Condition:** Code snippet like `model.to('cuda'); dummy_input.to('cuda'); start=time.perf_counter(); model(dummy_input); print(time.perf_counter()-start)` shows significantly lower time than CPU equivalent. `model.device` correctly reports `cuda`.
+- **Technical Details:** Ensure CUDA toolkit and compatible PyTorch version are installed. Test script: `model = KAN(...).to('cuda'); inp = torch.randn(..., device='cuda'); start = torch.cuda.Event(enable_timing=True); end = torch.cuda.Event(enable_timing=True); start.record(); out = model(inp); loss=out.mean(); loss.backward(); end.record(); torch.cuda.synchronize(); print(f"GPU time: {start.elapsed_time(end)} ms")`. Compare with CPU timing.
+- **Condition:** `torch.cuda.is_available()` is `True`. GPU forward/backward time is significantly faster (>5x) than CPU. No CUDA errors.
 - **Answer:** GPU run confirmed: `Yes`
 
 ### kan-multkan-details
-- **Condition:** `model = KAN([2, [2, 2], 1], n_m=[0, 1, 0])` instantiates. `model.plot()` shows a multiplication node (if visualization supported) or structure implies multiplication layer exists. `model(torch.randn(4, 2))` runs.
-- **Answer:** Multiplication Node Specification: `Using pykan n_m list.`
+- **Technical Details:** Use `KAN(..., n_m=[...])` syntax. Example `n_m=[0, 1, 0]` for `[in, hidden, out]` means hidden layer has 1 multiplication node, output layer has 0. The `pykan` implementation handles the `Ml` layer internally.
+- **Condition:** `model = KAN([2, [2, 2], 1], n_m=[0, 1, 0])` instantiates. `model(torch.randn(4, 2))` executes. `model.plot()` (if supported for MultKAN) visualizes the structure correctly OR inspecting `model.layers[1].shapes` reflects the combined addition/multiplication width if accessible.
+- **Answer:** Multiplication Node Specification: `Using pykan n_m list argument during KAN initialization.`
+- **Question:** Does `pykan`'s visualization fully support MultKAN diagrams? (Check `pykan` docs/issues).
 
 ### kan-kanpiler-details
-- **Condition:** `import sympy; x,y = sympy.symbols('x y'); expr = sympy.sin(x)+y**2; model = pykan.kanpiler([x,y], expr)` runs. `model.plot()` shows structure corresponding to sin(x) and y**2 feeding into an addition node.
+- **Technical Details:** `pip install sympy`. Use `pykan.kanpiler`. Ensure input variables are `sympy.Symbol` objects.
+- **Condition:** `import sympy; from pykan import kanpiler; x, y = sympy.symbols('x y'); expr = sympy.sin(x) + y**2; model = kanpiler([x, y], expr)` returns a `pykan.KAN` instance. `model.plot()` generates a graph showing structure: x -> sin -> +, y -> sq -> +.
 - **Answer:** Test successful: `Yes`
 
 ### kan-tree-converter-details
-- **Condition:** For a KAN trained on `f(x,y,z,w)=g(x,y)+h(z,w)`, `model.tree()` (or equivalent) produces output indicating separation of `(x,y)` and `(z,w)`. E.g., Text output shows grouping, or plot shows distinct branches.
-- **Answer:** Test successful: `Yes`
+- **Technical Details:** Requires `graphviz` installed (`pip install graphviz`, may need system package `sudo apt-get install graphviz`). Use `model.tree()` method. It calculates Hessians internally.
+- **Condition:** For a KAN model (either compiled or trained) representing `f(x,y,z,w)= (x+y)**2 + z*w`, `model.tree(style='box')` returns a graphviz object that, when rendered (`graph.render('tree')`), shows boxes grouping `(x,y)` and `(z,w)` separately before a final combination step. Test requires a suitable KAN model.
+- **Answer:** Test successful: `Yes` (Requires trained/compiled model)
+- **Question:** How robust is tree conversion to KAN training noise/approximation? (KAN 2.0 paper notes caveats).
 
 ### kan-pruning-expansion-details
-- **Condition:** Create a KAN `model = KAN([3, 5, 1])`. `model.prune_input([2])` results in `model.layer_widths[0] == 2`. `model.expand_width(1, 10)` changes `model.layer_widths[1] == 10`. `model.perturb(0.1)` changes model parameters slightly.
+- **Technical Details:** Use documented methods: `model.prune_input(input_ids_to_prune)`, `model.expand_width(layer_index, new_width)`, `model.expand_depth(layer_index, new_nodes)`, `model.perturb(magnitude)`. Check layer dimensions and parameter changes.
+- **Condition:** Create `model = KAN([3, 5, 1])`. `model.prune_input([2])`. Assert `model.layer_widths == [2, 5, 1]`. `model.expand_width(1, 7)`. Assert `model.layer_widths == [2, 7, 1]`. Capture parameter state before/after `model.perturb(0.01)` and assert inequality.
 - **Answer:** Pruning test successful: `Yes`
 
 ### kan-attribution-details
-- **Condition:** Function `calculate_kan_attribution(model, data)` is implemented. For a test case `f(x,y)=x`, the attribution score for input `x` should be significantly higher than for input `y`, whereas L1 norm might be similar if y activates initial layers strongly but is zeroed out later.
-- **Answer:** Comparison shows attribution correctly identifies `x` as important, `y` as unimportant: `Yes`
+- **Technical Details:** Implement function `calculate_kan_attribution(model, dataloader)` per KAN 2.0 paper Sec 4.1 (Eq. 9). Requires a forward pass over `dataloader` to compute activation stats (`Nl,i` = stddev of node activation, `El,i,j` = stddev of edge activation pre-summation). Compute `Al,i` and `Bl,i,j` iteratively backwards.
+- **Condition:** Function returns array `A0` of size `n_in`. Test with `f(x,y)=x` KAN: `A0[0]` >> `A0[1]`. Test with `f(x,y)=x+y` KAN: `A0[0]` approx `A0[1]`. Values differ from simple L1 norm of first layer activations.
+- **Answer:** Comparison shows attribution correctly identifies active vs inactive paths: `Yes`
+- **Question:** How sensitive is this to the data distribution in the dataloader used for stats? (Likely needs representative data).
 
 ### kan-base-model-arch-details
-- **Condition:** Function `create_arc_kan_model(config)` in `src/models/kan_model.py` returns a `pykan.KAN` instance. Input `n_in` = 900 (for 30x30 grid flattened). Output `n_out` = 900. Hidden layers defined in `config`. Function handles grid flattening/reshaping.
-- **Answer:** Initial Shape(s): `[900, 128, 128, 900]`; Input/Output Handling: `Flatten input grid (B, 30, 30) -> (B, 900); Reshape output (B, 900) -> (B, 30, 30)`
+- **Technical Details:** Create `src/models/kan_model.py`. Function `create_arc_kan_model(config)` reads `config['model']['kan']['layer_widths']`, `grid_size`, `k`, `input_channels` (e.g., 10 if one-hot color), `output_channels`. Input handling: `x (B, H, W)` -> maybe `nn.Conv2d` pre-processing -> `nn.Flatten(start_dim=1)` -> KAN. Output handling: KAN output `(B, H_out*W_out*C_out)` -> `view(B, C_out, H_out, W_out)` -> maybe `nn.ConvTranspose2d` post-processing or direct argmax for color prediction.
+- **Condition:** Function returns instantiated `pykan.KAN` (or wrapper `nn.Module`). Handles input tensor `(B, H, W)` or `(B, C, H, W)` and returns output tensor suitable for ARC grid prediction (e.g., `(B, H_out, W_out)` with integer class per pixel or `(B, num_colors, H_out, W_out)` logits).
+- **Answer:** Initial Shape(s): `[Needs refinement based on Input/Output handling]`; Input/Output Handling: `Input: (B, H, W) -> OneHot(10 colors) -> (B, 10, H, W) -> Conv2D layers -> Flatten -> KAN -> Output: (B, H_out*W_out*10) -> Reshape(B, 10, H_out, W_out) -> Argmax(dim=1) -> (B, H_out, W_out)`. This is just one possibility.
+- **Question:** Should we use convolutions before/after KAN, or feed flattened grids directly? How to handle variable grid sizes? (Requires padding or more complex architecture).
 
 ### kan-base-model-test-details
-- **Condition:** `tests/test_kan.py` includes `test_arc_kan_forward`. Creates model via `create_arc_kan_model`, passes `torch.randn(4, 900)`, asserts output shape is `(4, 900)`. `pytest tests/test_kan.py` passes.
-- **Answer:** Dummy Data: `torch.randn(4, 900)`
+- **Condition:** `tests/test_kan.py::test_arc_kan_forward` exists. Instantiates model with typical config (e.g., 30x30 grids, 10 colors). Passes dummy input `torch.randint(0, 10, (4, 30, 30))` (or pre-processed shape). Asserts output tensor has the final expected grid shape (e.g., `(4, 30, 30)`). `pytest tests/test_kan.py` passes.
+- **Answer:** Dummy Data: `torch.randint(0, 10, (4, 30, 30))`
 
 ## Phase 3 Details
 
 ### ntm-interface-details
-- **Condition:** `src/modules/memory_interface.py` exists. Defines `AbstractMemoryInterface(ABC, nn.Module)`. Includes abstract methods `@abstractmethod def read(self, memory_state, inputs)` returning `read_output`, `@abstractmethod def write(self, memory_state, processed_data, inputs)` returning `new_memory_state`, `@abstractmethod def initialize_memory(self, batch_size)` returning `initial_memory_state`. Type hints are used.
+- **Technical Details:** Create file `src/modules/memory/memory_interface.py`. Use `from abc import ABC, abstractmethod`, `import torch`, `import torch.nn as nn`. Define `class AbstractMemoryInterface(ABC, nn.Module):`. Define abstract methods with precise type hints.
+- **Condition:** File exists. Class and methods defined. `python -m py_compile src/modules/memory/memory_interface.py` runs without error.
+- **Question:** Should the interface support multiple read/write heads? (Yes, DNC/NAR might. Inputs/outputs should perhaps be lists of tensors or have a head dimension). Let's refine signatures: `read(self, memory_state, read_inputs) -> List[torch.Tensor]`, `write(self, memory_state, write_inputs) -> torch.Tensor`. `initialize_memory(self, batch_size) -> torch.Tensor`. Inputs need clearer definition based on variant.
 
 ### ts-mlp-details
-- **Condition:** `src/modules/token_summarization.py` contains `summarize_mlp(tokens, k)`. Returns shape `[batch, k, dim]`. `pytest tests/test_token_summarization.py::test_summarize_mlp` passes.
-- **Answer:** MLP Architecture: `Linear(d, 128), ReLU, Linear(128, 1)` per token, weights computed, softmax, weighted sum.
+- **Technical Details:** Implement `summarize_mlp` in `src/modules/token_summarization.py`. Use `nn.Module` to hold MLP layers for better parameter management. Input `tokens` (B, P, D). Output `(B, k, D)`.
+- **Condition:** Function/Class exists. `pytest tests/test_token_summarization.py::test_summarize_mlp` passes.
+- **Answer:** MLP Architecture: `nn.Sequential(nn.Linear(D, 128), nn.ReLU(), nn.Linear(128, k))` applied to each input token's features independently is NOT correct. TTM computes weights FROM tokens. Correct: MLP takes tokens (B, P, D), outputs weights (B, P, k). `MLP = nn.Sequential(nn.Linear(D, 128), nn.ReLU(), nn.Linear(128, k))`. `weights = MLP(tokens) # (B, P, k)`. `weights = F.softmax(weights / temperature, dim=1)`. `output = torch.einsum('bpk,bpd->bkd', weights, tokens)`.
+- **Question:** Temperature for softmax? (Add as argument, default 1.0).
 
 ### ts-query-details
-- **Condition:** `summarize_query(tokens, k, query_vectors)` exists. Returns shape `[batch, k, dim]`. `pytest tests/test_token_summarization.py::test_summarize_query` passes.
-- **Answer:** Query Vectors: `nn.Parameter(k, d), initialized kaiming_uniform_`
+- **Technical Details:** Implement `SummarizeQuery(nn.Module)` holding `self.query_vectors = nn.Parameter(torch.randn(k, D))`. `forward(self, tokens)` performs bmm attention as described before.
+- **Condition:** Class exists. `pytest tests/test_token_summarization.py::test_summarize_query` passes.
+- **Answer:** Query Vectors: `nn.Parameter(k, D)`, initialized `nn.init.xavier_uniform_`.
+- **Question:** Should queries be learned per instance or shared? (Shared `nn.Parameter` is standard).
 
 ### ts-pooling-details
-- **Condition:** `summarize_pooling(tokens, k, pool_type='avg')` exists. Returns shape `[batch, k, dim]`. `pytest tests/test_token_summarization.py::test_summarize_pooling` passes.
-- **Answer:** Projection Layer: `Yes, Linear(d, d) after pooling.`
+- **Technical Details:** Implement `SummarizePooling(nn.Module)` with `pool_type`, `k`, `projection`. Use `einops.rearrange` and `einops.reduce`. `tokens_grouped = rearrange(tokens, 'b (k group_size) d -> b k group_size d', k=self.k)`. `pooled = reduce(tokens_grouped, 'b k group_size d -> b k d', reduction=self.pool_type)`. Apply optional linear projection. Handle non-divisible P using padding or adaptive pooling.
+- **Condition:** Class exists. `pytest tests/test_token_summarization.py::test_summarize_pooling` passes.
+- **Answer:** Projection Layer: `Yes, nn.Linear(D, D)`. Pooling: `einops`. Non-divisible handling: Pad P to nearest multiple of k before rearrange.
 
 ### ts-tests-details
-- **Condition:** `pytest tests/test_token_summarization.py` passes all tests for MLP, Query, and Pooling summarizers, verifying output shapes for various input `p`, `k`, `d`.
+- **Condition:** `pytest tests/test_token_summarization.py` passes all tests.
 
 ### ntm-ttm-class-details
-- **Condition:** `src/modules/ttm_memory.py` contains `class TTMMemory(AbstractMemoryInterface):`. `__init__` takes arguments like `memory_size`, `read_size`, `input_dim`, `summarization_type`.
+- **Technical Details:** Create `src/modules/memory/ttm_memory.py`. `class TTMMemory(AbstractMemoryInterface):`. `__init__` stores args. Instantiates `self.pos_embed_read = nn.Embedding(...)`, `self.pos_embed_write = nn.Embedding(...)`, and the chosen summarization modules/functions (e.g., `self.read_summarizer = SummarizeQuery(k=read_size, D=input_dim)`).
+- **Condition:** File/Class exist. Instantiation works.
 
 ### ntm-ttm-read-details
-- **Condition:** `TTMMemory.read` implemented. Adds positional embeddings `self.pos_embed_read` (`nn.Embedding(m+n, d)`) to `torch.cat([memory_state, inputs], dim=1)`. Calls chosen summarizer (e.g., `summarize_mlp`) with `k=self.read_size`. Returns tensor of shape `[b, r, d]`.
-- **Answer:** `r = 16`; Positional Embeddings: `nn.Embedding(m+n, d)`
+- **Technical Details:** Implement `read`. Input `memory_state (B, M, D)`, `inputs (B, N, D)`. Create type embeddings (B, M, D) for memory, (B, N, D) for input (e.g., using two `nn.Parameter(1, 1, D)` expanded). Add type embeddings. Concatenate `combined = torch.cat([mem_typed, inp_typed], dim=1)`. Add positional embeddings `pos_embed = self.pos_embed_read(...)`. Call `read_output = self.read_summarizer(combined + pos_embed)`.
+- **Condition:** Method returns `(B, self.read_size, D)`. Uses distinct type embeddings and shared positional embeddings.
+- **Answer:** `r = 16`; Positional/Type Embeddings: Separate learnable type embeddings for memory/input added first, then shared positional embedding for M+N positions added.
 
 ### ntm-ttm-write-details
-- **Condition:** `TTMMemory.write` implemented. Adds positional embeddings `self.pos_embed_write` (`nn.Embedding(m+r+n, d)`) to `torch.cat([memory_state, processed_data, inputs], dim=1)`. Calls chosen summarizer with `k=self.memory_size`. Returns tensor of shape `[b, m, d]`.
-- **Answer:** `m = 96`; Summarization: `summarize_mlp`
+- **Technical Details:** Implement `write`. Inputs `memory_state (B, M, D)`, `processed_data (B, R, D)`, `inputs (B, N, D)`. Create type embeddings for memory, processed, input. Add type embeddings. Concatenate `combined = torch.cat([mem_typed, proc_typed, inp_typed], dim=1)`. Add positional embeddings `pos_embed = self.pos_embed_write(...)` for M+R+N positions. Call `new_memory_state = self.write_summarizer(combined + pos_embed)`.
+- **Condition:** Method returns `(B, self.memory_size, D)`. Uses distinct type embeddings and shared positional embeddings.
+- **Answer:** `m = 96`; Summarization: `SummarizeQuery` (Configurable). Type embeddings used.
 
 ### ntm-ttm-init-details
-- **Condition:** `TTMMemory.initialize_memory` implemented. Uses `self.register_buffer('initial_memory', torch.zeros(1, self.memory_size, self.input_dim))`. Returns `self.initial_memory.expand(batch_size, -1, -1)`.
-- **Answer:** Initialization: `Zero-initialized buffer`
+- **Technical Details:** Implement `initialize_memory`. Use `self.register_buffer`.
+- **Condition:** Returns `(batch_size, self.memory_size, D)`.
+- **Answer:** Initialization: `Zero-initialized non-trainable buffer.`
 
 ### ntm-ttm-test-details
 - **Condition:** `pytest tests/test_ttm_memory.py` passes, verifying `initialize_memory`, `read`, and `write` methods produce correct shapes and that the memory state tensor passed to `write` differs from the returned `new_memory_state`.
 
-### ntm-dnc-class-details
-- **Condition:** `src/modules/dnc_memory.py` contains `class DNCMemory(AbstractMemoryInterface):`. (Optional)
+### ntm-dnc-class-details - ntm-dnc-test-details
+- **Condition:** (Optional) All implementation and tests completed if DNC variant is pursued.
 
-### ntm-dnc-addressing-details
-- **Condition:** Implements calculation of read/write keys, strengths, content-based weights (cosine sim), allocation weighting, precedence weighting, and final read/write weights per head. (Optional)
-- **Answer:** Addressing Details: `Cosine Similarity (Content), Temporal Links (Location)`
-
-### ntm-dnc-read-details
-- **Condition:** `DNCMemory.read` uses read weights to retrieve weighted sum of memory rows. (Optional)
-
-### ntm-dnc-write-details
-- **Condition:** `DNCMemory.write` uses write weights, erase vector (sigmoid), and add vector (tanh) to update memory matrix `M_t+1 = M_t * (1 - w_w * e) + w_w * a`. Updates usage vector. (Optional)
-
-### ntm-dnc-allocation-details
-- **Condition:** Implements calculation of usage vector based on read/write weights and free gates. Calculates allocation weights based on usage. Updates temporal link matrix. (Optional)
-
-### ntm-dnc-test-details
-- **Condition:** `pytest tests/test_dnc_memory.py` passes, verifying core addressing and memory update logic. (Optional)
-
-### ntm-nar-class-details
-- **Condition:** `src/modules/nar_memory.py` contains `class NARMemory(AbstractMemoryInterface):`. (Optional)
-
-### ntm-nar-arch-details
-- **Condition:** Implements the DNC memory module controlled by a Transformer (or KAN) processing unit, as interpreted from the NAR paper. (Optional)
-- **Answer:** NAR Memory Description: `DNC memory module where read/write keys/vectors are generated by a separate KAN/Transformer controller.`
-
-### ntm-nar-test-details
-- **Condition:** `pytest tests/test_nar_memory.py` passes, verifying interactions and memory updates. (Optional)
+### ntm-nar-class-details - ntm-nar-test-details
+- **Condition:** (Optional) All implementation and tests completed if NAR variant is pursued.
 
 ### ntm-integration-details
-- **Condition:** `src/models/main_model.py` `KAN_NTM_Model.__init__` takes `memory_variant='ttm'` config. Instantiates the correct `AbstractMemoryInterface` implementation. `forward` pass calls `self.memory.initialize_memory`, `read_data = self.memory.read(...)`, `processed = self.kan_processor(read_data)`, `self.memory_state = self.memory.write(...)`.
-- **Answer:** Integration Points: `Initialize at start -> Read before KAN -> Process read data -> Write after KAN processing`.
+- **Condition:** Main model (`src/models/main_model.py`) can be configured via YAML/dict to use `TTMMemory`, `DNCMemory`, or `NARMemory`. The `forward` pass correctly sequences `initialize_memory`, `read_data = self.memory.read(...)`, `processed = self.kan_processor(read_data)`, `self.memory_state = self.memory.write(...)`.
+- **Answer:** Integration Points: Confirmed sequence `init -> read -> process -> write`.
 
 ## Phase 4 Details
 
 ### dc-dsl-details
-- **Condition:** `src/dreamcoder/arc_dsl.py` defines functions like `def move_object(grid, obj_spec, dx, dy): ...`, `def recolor(grid, obj_spec, new_color): ...` etc. A list `ARC_DSL_PRIMITIVES` contains these functions or representations.
-- **Answer:** Key Primitives: `GetObject, CopyObject, MoveObject, RecolorObject, RotateObject, ReflectObject, DrawLine, FillRectangle`
+- **Technical Details:** Define primitives in `src/dreamcoder/arc_dsl.py`. Use type hints for arguments (e.g., `grid: np.ndarray`, `color: int`). Include error handling (e.g., what if `GetObject` finds no object?).
+- **Condition:** File exists. Core primitives implemented and individually testable via `pytest`. `ARC_DSL_PRIMITIVES` list defined.
+- **Answer:** Key Primitives: `GetObjectByColorSize, CopyObject, MoveObject, RecolorObject, RotateObject, ReflectObject, DrawLine, FillRectangle, ComposeGrids(Overlay/Tile), GetColor, GetSize, CountObjects`
+- **Question:** Need a canonical representation for programs (ASTs? Lambda calculus?). Use `Parsita` or `funcparserlib` for parsing if needed? (Start with Python ASTs).
 
 ### dc-recognition-model-details
-- **Condition:** `src/dreamcoder/recognition_model.py` defines `ARCRecognitionCNN(nn.Module)`. `forward(self, tasks)` takes a batch of tasks (e.g., list of dicts or padded tensor of examples) and outputs `log_probabilities` over the current DSL library (primitives + abstractions).
-- **Answer:** Architecture: `CNN layers processing input/output grids -> Flatten -> MLP -> Output logits per DSL primitive`
+- **Technical Details:** Implement `ARCRecognitionCNN` in `src/dreamcoder/recognition_model.py`. Preprocessing: pad grids to 30x30, stack `(input, output)` pairs along channel dim (e.g., `(B, num_examples * 2, 30, 30)`), maybe one-hot colors `(B, num_examples * 2 * 10, 30, 30)`. Pass through CNN -> Pool -> MLP -> Logits `(B, num_dsl_primitives)`.
+- **Condition:** Class exists. Forward pass handles list of tasks (variable examples) and returns `(B, num_primitives)` logits. `pytest tests/test_dreamcoder.py::test_recognition_model_forward` passes.
+- **Answer:** Architecture: `Variable examples -> Pad/Stack -> CNN Encoder -> Attentional Pooling over examples -> MLP -> Logits`
+- **Question:** How to represent the target program for loss calculation? (Indices of primitives used? One-hot vector?). Use simple primitive indices.
 
 ### dc-generative-model-details
-- **Condition:** `src/dreamcoder/generative_model.py` defines `Library` class storing `(primitive, log_probability)` pairs. `sample_program()` recursively samples primitives based on probabilities. `program_log_prob(program)` calculates total log prob.
-- **Answer:** Probability Assignment: `Uniform initially, updated via MDL during abstraction (higher prob for reused abstractions)`
+- **Technical Details:** Implement `Library` in `src/dreamcoder/generative_model.py`. Store primitives/abstractions with associated log probabilities. `sample_program` needs to handle function types and arguments recursively. `program_log_prob` traverses the program AST and sums log probs. Need a type system.
+- **Condition:** Class exists. Can add abstractions. Sampling produces typed programs. Scoring works. Sum of probabilities for choices at any node type is 1.
+- **Answer:** Probability Assignment: `MDL-based: log_prob ~ -complexity - usage_count`. Need normalization.
+- **Question:** Implement full polymorphic type system or simplified version? (Start simple, maybe just base types like grid, int, color, list[coord]).
 
 ### dc-wake-phase-details
-- **Condition:** `src/dreamcoder/wake_phase.py` `search_for_program` implements enumeration or search. Uses `recognition_model` to prioritize expansions. Uses `generative_model` for prior `P(program)`. Checks candidate programs by executing them on all task examples. Returns highest posterior `P(program | task)` solution(s).
-- **Answer:** Search Algorithm: `Type-directed enumeration search with beam, guided by recognition network scores combined with generative prior.`
+- **Technical Details:** Implement `search_for_program` using best-first search. Priority queue stores `(score, program_ast)`. Score is `log P(program | library) + log P(primitives | task)`. Expand node by applying available primitives respecting types. Check validity against task examples.
+- **Condition:** Function finds simple known program for test task within timeout.
+- **Answer:** Search Algorithm: `Best-first enumeration with neural guidance.`
+- **Question:** Search depth limit? Beam width?
 
 ### dc-abstraction-phase-details
-- **Condition:** `src/dreamcoder/abstraction_phase.py` `find_abstractions` takes programs found during wake. Uses techniques (e.g., common subexpression identification, possibly version space algebra from EC2) to find reusable fragments. Scores fragments by compression achieved (`ΔMDL = old_cost - new_cost`). Adds best fragment(s) to the library.
-- **Answer:** Fragment Identification: `Common subexpression analysis on program ASTs.`
+- **Technical Details:** Implement `find_abstractions`. Iterate found `programs` (ASTs). Identify common subtrees. Evaluate candidate `abstraction` by re-writing programs using it and calculating `ΔMDL = sum(old_logP) - sum(new_logP) - C`. Add best abstraction(s) to library and update probabilities (renormalize).
+- **Condition:** Identifies and abstracts simple common pattern `(lambda x: (+ 1 x))` from `[(+ 1 5), (+ 1 7)]`. Library probabilities updated.
+- **Answer:** Fragment Identification: `AST common subexpression.` Complexity `C` = 1.0 (tunable).
 
 ### dc-dreaming-phase-details
-- **Condition:** `src/dreamcoder/dreaming_phase.py` `train_recognition_model` loops: Samples program `p` from `library`, generates task `t` by running `p`, runs `search_for_program(t)` to potentially find `p` or equivalent `p'`, adds `(t, p')` to training batch. Also adds `(task, program)` from wake phase replays. Performs optimizer step on recognition model using this batch.
-- **Answer:** Fantasy Generation: `Sample program -> Execute on canonical inputs -> Synthesize task -> Train recognition model to predict program from task.`
+- **Technical Details:** Implement `train_recognition_model`. Loop `num_dreams`: Sample `p`, generate `t`. Get training pairs `(t, p)` from dreams and replays. Compute loss: For each step in target program `p`, calculate cross-entropy between recognition model logits (given `t`) and the target primitive used at that step. Average loss over program steps/batch. Apply optimizer step.
+- **Condition:** Function runs one training step. Recognition model parameters are updated. Loss value is reasonable.
+- **Answer:** Fantasy Generation: `Sample program -> Execute on random 10x10 grid -> Task`. Loss: Cross-entropy over primitives at each program step.
 
 ### dc-integration-mechanism-details
-- **Condition:** The main training loop (`train.py`) includes calls to `wake_phase.search_for_program` for each training task, `abstraction_phase.find_abstractions` periodically (e.g., every N epochs), and `dreaming_phase.train_recognition_model` periodically. The KAN+NTM model might potentially use the output program from DreamCoder as part of its input or configuration.
-- **Answer:** Interaction: `DreamCoder runs independently initially to build a library for solving ARC tasks purely symbolically. KAN+NTM might later leverage DC's recognition model or library.` (Needs final decision)
+- **Technical Details:** Implement chosen option (DC Guides). KAN+NTM model's `forward` method accepts optional `dsl_program_embedding`. If provided, this embedding (e.g., from GNN on DSL AST) conditions attention layers or memory interface operations. `train.py` calls DC search first, then passes embedding to model.
+- **Condition:** KAN+NTM model signature updated. Training script includes DC search call. Tested that providing embedding changes model output.
+- **Answer:** Interaction: `Option 2 (DC Guides)`: DC program AST embedded using Graph Neural Network, embedding vector passed as additional input to KAN+NTM model.
 
 ### dc-tests-details
-- **Condition:** `pytest tests/test_dreamcoder.py` passes tests covering: DSL execution, recognition model forward pass shape, generative model sampling/scoring, wake search on a trivial task, abstraction identifying a simple `(+ 1 x)` pattern, dreaming phase training step.
+- **Technical Details:** Implement `pytest tests/test_dreamcoder.py` to cover all sub-tests for DSL, recognition, generation, wake, abstraction, dreaming.
+- **Condition:** All sub-tests pass.
+- **Answer:** Test Coverage: All sub-tests pass.
 
 ## Phase 5 Details
 
 ### vis-state-tracker-class-details
-- **Condition:** `src/visualization/state_tracker.py` contains `class StateTracker:` with methods `add_state`, `get_states`, `clear_states`, `register_hooks`, `remove_hooks`. Internal storage `self.history` is a `defaultdict(list)`.
+- **Technical Details:** Implement `StateTracker` class with `self.history` as `defaultdict(lambda: defaultdict(list))` to store `history[step][module_name] = [state_dict, ...]`. Has methods `add_state`, `get_states`, `clear_states`, `register_hooks`, `remove_hooks`.
+- **Condition:** `self.history` populated correctly during run. Contains all specified metadata.
+- **Answer:** Metadata Captured: `id, step, module_name, module_class, hook_type, io_type, shape, dtype, timestamp, tensor_data`
 
 ### vis-hook-registration-details
-- **Condition:** `register_hooks` takes `model` and `module_filter_fn`. Iterates `model.named_modules()`. If `module_filter_fn(name, module)` returns `True`, attaches forward hook `module.register_forward_hook(partial(self._hook_fn, name, 'forward'))` and optionally backward hook. Stores handles in `self.hook_handles`.
+- **Technical Details:** Use `functools.partial` to pass module name and hook type to `_hook_fn`. Store handles in `self.hook_handles: List[torch.utils.hooks.RemovableHandle]`. `remove_hooks` calls `h.remove()` for h in handles and clears list.
+- **Condition:** Hooks attach/detach correctly. `module_filter_fn` works.
 - **Answer:** Module Selection: `lambda name, mod: isinstance(mod, (pykan.KANLayer, AbstractMemoryInterface, nn.MultiheadAttention))`
 
 ### vis-state-recording-details
-- **Condition:** `_hook_fn(self, name, hook_type, module, input, output)` correctly captures `input` (tuple) and `output` (tensor or tuple), detaches, moves to CPU. Records state dict `{'id': uuid, 'step': self.current_step, 'module_name': name, ... 'data': tensor}` to `self.history[self.current_step]`. Handles tuples.
-- **Answer:** Metadata Captured: `id, step, module_name, module_class, hook_type, io_type, shape, dtype, timestamp`
+- **Technical Details:** Implement `_hook_fn` signature `(self, module_name, hook_type, io_type, module, args, output)`. Handle `args` (input tuple) and `output`. Use `copy.deepcopy` for mutable metadata if needed. Store tensors after `.clone().detach().cpu()`. Add `timestamp = time.time()`.
+- **Condition:** `self.history` populated correctly during run. Contains all specified metadata.
+- **Answer:** Metadata Captured: `id, step, module_name, module_class, hook_type, io_type, shape, dtype, timestamp, tensor_data`
 
 ### vis-graph-extraction-details
-- **Condition:** `build_computational_graph()` analyzes `self.history` to infer connections (e.g., output tensor ID from module A at step T matches input tensor ID for module B at step T or T+1). Returns nodes `[{'id': module_name, 'label': ...}]` and edges `[{'source': name1, 'target': name2}]`.
-- **Answer:** Method: `Custom traversal connecting states based on module execution order and tensor identity (requires capturing tensor IDs or using object identity carefully).` Format: `NetworkX graph object or list of node/edge dicts.`
+- **Technical Details:** Implement `build_computational_graph`. Option 2 (Sequential Assumption) is more feasible. Maintain `last_hooked_module_name` in tracker. When `_hook_fn` called for module B, if `last_hooked_module_name` is set (module A), add edge A->B to `networkx.DiGraph`. Update `last_hooked_module_name = B`. Reset `last_hooked_module_name` at start of step. Add nodes with metadata.
+- **Condition:** Returns `networkx.DiGraph`. Graph for simple sequential model is correct. Handles parallel branches if hook order is consistent.
+- **Answer:** Method: `Sequential assumption based on hook execution order within a step.` Format: `NetworkX DiGraph`.
 
 ### vis-format-details
-- **Condition:** `docs/visualization_format.md` exists and details the dictionary structure for states and the node/edge list format for the graph.
+- **Technical Details:** Implement `docs/visualization_format.md` to show example state dict and describes NetworkX node/edge attributes (e.g., `node['label']`, `node['type']`, `edge['step']`).
+- **Condition:** File exists and shows format.
 - **Answer:** Format Snippet: `State: {'id': ..., 'step': ..., 'module_name': ..., 'data': tensor(...), 'shape': ..., ...}`
 
 ### vis-mapper-interface-details
-- **Condition:** `src/visualization/vis_mapper.py` defines `VisMapper(ABC)` with specified abstract methods. `get_ui_controls` should accept a context object (e.g., the UI builder instance) and return a list of UI element definitions.
-- **Answer:** Return Types: `pv.StructuredGrid, pv.PolyData, pv.ImageData, pv.MultiBlock, pv.ChartXY`
+- **Technical Details:** Define `VisMapper(ABC)` in `src/visualization/vis_mapper_interface.py`. `get_ui_controls` signature `(self, state_data, ui_context) -> List`. UI elements depend on chosen library (Panel widgets or DearPyGui IDs).
+- **Condition:** Interface defined.
+- **Answer:** Return Types: `pv.BaseDataObject`, `List[panel.layout.Panel | dpg.ItemId]`
 
 ### vis-tensor-mapper-details
-- **Condition:** `TensorMapper` implemented. `map_to_pyvista` returns `pv.ChartXY` (1D), `pv.ImageData` (2D), `pv.StructuredGrid` (3D+). For 3D, sets up data for volume rendering. `get_ui_controls` returns widgets for opacity map editor (e.g., `plotter.add_volume_opacity_editor`), colormap selector.
-- **Answer:** Volume Config: `Interactive opacity editor widget provided by PyVista/VTK, standard colormap dropdown.`
+- **Technical Details:** Implement `TensorMapper`. `map_to_pyvista`: Use `pv.ImageData` for 2D (texture map or scalars), `pv.StructuredGrid` for 3D. Use `np.arange` for coordinates. For volume render, use `plotter.add_volume(grid, ..., name=state_id)`. `get_ui_controls`: Return `panel.widgets.Select(options=pv.colormaps, name='Colormap')`, `panel.widgets.EditableRangeSlider(name='Opacity Map', ...)`, connect their `.param.watch` to methods that call `plotter.update_scalar_bar()` or `plotter.update_volume_opacity()`.
+- **Condition:** Maps tensors. Volume rendering via `add_volume` works. UI controls dynamically adjust opacity/colormap of the rendered volume actor.
+- **Answer:** Volume Config: `Uses add_volume linked to Panel widgets for colormap selection and opacity map (via EditableRangeSlider).`
 
 ### vis-graph-mapper-details
-- **Condition:** `GraphMapper` implemented. `map_to_pyvista` creates `pv.PolyData` with points (nodes) and lines (edges). Node scalars map to module types. `get_ui_controls` returns controls for node size, label visibility, layout algorithm selector.
-- **Answer:** Node Positioning: `Initial force-directed layout (e.g., vtkForceDirectedLayoutStrategy), option for other layouts.`
+- **Technical Details:** Implement `GraphMapper`. Use `networkx` to compute layout (`nx.spring_layout`). Create `pv.PolyData` with node points and edge lines. Add node scalars for coloring by module type. `get_ui_controls`: Return `panel.widgets.Select(options=['spring', 'kamada_kawai'])`, `panel.widgets.FloatSlider(name='Node Size')`, `panel.widgets.Checkbox(name='Show Labels')`. Callbacks recompute layout/update point size/toggle labels.
+- **Condition:** Maps `networkx.DiGraph`. UI controls adjust layout, size, labels.
+- **Answer:** Node Positioning: `NetworkX spring_layout default, options available.`
 
 ### vis-other-mappers-details
-- **Condition:** E.g., `ARCTaskMapper` exists that takes a raw ARC task dictionary and creates a `pv.MultiBlock` dataset with input/output grids visualized as `pv.ImageData`.
+- **Technical Details:** Implement necessary mappers, e.g., `ARCTaskMapper` displays input/output pairs using `pv.ImageData` in a `pv.MultiBlock`.
+- **Condition:** `ARCTaskMapper` exists and works.
+- **Answer:** Implemented: `ARCTaskMapper`
 
 ### vis-mapper-registry-details
-- **Condition:** `MapperRegistry` implemented. `get_mapper(state_data)` uses `isinstance` on `state_data['data']` (if tensor) and checks `state_data['shape']` or looks for specific keys like `'graph_nodes'` to select appropriate mapper class from registered list.
-- **Answer:** Selection Logic: `Priority list: Check for graph type, then tensor type/dims, then scalar, etc.`
+- **Technical Details:** Implement `MapperRegistry`. `get_mapper` checks `state_data['metadata'].get('vis_type')` first (e.g., 'graph', 'arc_task'), then checks `isinstance(state_data['data'], torch.Tensor)` and `state_data['shape']` dimensions.
+- **Condition:** Registry returns correct mapper based on state type/shape.
+- **Answer:** Selection Logic: `Check metadata hint ('vis_type') -> Check data type (Tensor, Graph) -> Check tensor dimensions.`
 
 ### vis-engine-setup-details
-- **Condition:** `VisualizationEngine` initializes `pyvistaqt.BackgroundPlotter` or `panel.pane.VTK`. `run()` shows the window. Background color is verified black. Basic camera interaction works.
-- **Answer:** Integration: `pyvistaqt` (or `panel`)
+- **Technical Details:** Implement `VisualizationEngine`. Use `pyvistaqt.BackgroundPlotter(window_size=(1600, 900), ...)`.
+- **Condition:** Engine runs, shows black window, responds to camera.
+- **Answer:** Integration: `pyvistaqt`
 
 ### vis-dynamic-updates-details
-- **Condition:** Engine's `_update` method retrieves states for `current_step`, clears actors related to dynamic states (not static UI), gets mappers via registry, calls `map_to_pyvista`, adds/updates actors using names (`plotter.add_mesh(..., name=state_id, overwrite=True)`).
-- **Answer:** Update Strategy: `Overwrite actors using unique names per visualized state.`
+- **Technical Details:** Use `QtCore.QTimer` to call `engine._update` periodically. `_update` gets states, identifies selected state, gets mapper, gets pv_object, uses `plotter.add_mesh(..., name=state_id, overwrite=True)` or `plotter.add_volume(..., name=state_id)`. Store actor references in `self.actor_dict`. Remove old actors using names before adding new ones.
+- **Condition:** Visualization updates smoothly when timeline step changes or new states arrive. Overwriting actors prevents memory leaks.
+- **Answer:** Update Strategy: `Overwrite actors using unique names based on state ID.`
 
 ### vis-imgui-integration-details
-- **Condition:** Selected IMGUI library (`panel` widgets or `dearpygui`) is used to create dockable or laid-out windows/widgets alongside the PyVista rendering view.
-- **Answer:** IMGUI Lib: `panel` (or `dearpygui`)
+- **Technical Details:** Assuming Panel: Use `panel.extension('vtk')`. Main layout `layout = pn.GridSpec(...)`. Place `vtk_pane = panel.pane.VTK(plotter,...)` in a cell. Place Panel widgets (sliders, selectors) in other cells.
+- **Condition:** Both PyVista rendering and Panel widgets are visible and interactive within the same application window.
+- **Answer:** IMGUI Lib: `panel`
 
-### vis-ui-panel-state-selector
-- **Condition:** A panel displays a tree or list of hooked module names. Clicking a name selects it as the current item for visualization.
-
-### vis-ui-panel-timeline
-- **Condition:** A slider widget's range matches the number of recorded steps. Dragging the slider updates `engine.current_step` and triggers a scene update. Play/Pause/Step buttons exist.
-
-### vis-ui-panel-vis-controls
-- **Condition:** A panel area is designated. When a state is selected, this panel is populated by UI elements returned from `active_mapper.get_ui_controls()`. Interacting with these controls (e.g., changing colormap) updates the PyVista actor live.
-
-### vis-ui-panel-graph
-- **Condition:** A panel displays the computational graph from `GraphMapper`. Nodes are selectable, and selection highlights the corresponding module in the State Selector panel.
-
-### vis-ui-panel-performance
-- **Condition:** A panel displays text showing current FPS (calculated from `plotter.iren.fps_timer`) and memory usage (`torch.cuda.memory_summary()`).
-
-### vis-ui-panel-edit
-- **Condition:** (Future) Panel allows editing values of selected tensor elements. Button triggers callback to update data in `StateTracker` (requires careful implementation).
-
-### vis-ui-panel-dataset
-- **Condition:** (Future) Dropdown allows selecting active dataset (ARC1, ARC2, Merged). Triggers appropriate data loading/filtering.
+### vis-ui-panel-state-selector - vis-ui-panel-dataset
+- **Technical Details:** Implement all specified Panel widgets to work correctly.
+- **Condition:** All widgets are functional and interactive.
+- **Answer:** Panel Widgets: State Selector, Timeline, Visualization Controls, Computational Graph, Performance Monitor, Interactive Editing, Dataset Selector
 
 ### vis-picking-details
-- **Condition:** `plotter.enable_cell_picking(...)` is active. The callback function identifies the picked actor/cell, finds the corresponding state data in `StateTracker` (e.g., via actor name or spatial query), and displays metadata (module name, step, shape, value at point) in a status bar or dedicated tooltip area.
-- **Answer:** Picking Mech: `Cell Picking with custom callback.`
+- **Technical Details:** Implement `_handle_pick` callback. Needs logic to map picked `cell_id` or `point_id` back to original tensor index/graph node ID, potentially using information stored when creating the PyVista mesh/graph. Display result in `self.info_pane = pn.pane.Markdown(...)`.
+- **Condition:** Clicking voxels/nodes displays correct corresponding information (module name, step, value/coords) in the info pane.
+- **Answer:** Picking Mech: `Cell Picking`. Info Display: `pn.pane.Markdown`
 
 ### vis-feed-integration-details
-- **Condition:** `StateTracker` has a flag `is_active`. `VisualizationEngine._update` checks flag and calls `tracker.get_states(self.current_step)`. `train.py` toggles `tracker.is_active` based on `--visualize` flag and calls `tracker.increment_step()` per batch.
+- **Technical Details:** Implement `StateTracker` with `get_max_step()` and `increment_step()`.
+- **Condition:** `StateTracker` correctly tracks step count.
 - **Answer:** Transfer Mech: `Engine polls tracker in its update loop.`
 
 ### vis-live-test-details
-- **Condition:** Running `python train.py --visualize --epochs 1 --max_steps 50` shows the visualization window updating dynamically for 50 steps. Interaction with timeline and controls works as expected.
+- **Technical Details:** Run `python train.py --visualize --epochs 1 --max_steps 50` to verify live updates.
+- **Condition:** Visualization window shows live updates.
 - **Answer:** Performance Impact: `[Measure % slowdown compared to run without --visualize]`
 
 ### vis-scalability-test-details
-- **Condition:** Run visualization for a longer duration (e.g., 1 full epoch) or with a larger model. Monitor FPS in the Performance Panel. If FPS < target, use profiling (`cProfile`, `torch.profiler`) to identify bottlenecks.
+- **Technical Details:** Run `python train.py --visualize` for ~1000 steps. Monitor FPS and memory usage.
+- **Condition:** Visualization maintains >15 FPS and uses GPU efficiently.
 - **Answer:** Target FPS: `20`; Bottlenecks: `[Identify specific slow functions/operations]`
 
 ### vis-demo-script-details
-- **Condition:** `python run_visualization_demo.py` runs without errors. Loads sample data/states. Demonstrates selecting different modules, changing steps via timeline, interacting with dynamic controls (e.g., volume opacity), viewing the graph.
-- **Answer:** Demo Highlights: `Live update simulation / Replay of captured states; Multi-view tensor visualization; Graph navigation; Interactive controls.`
+- **Technical Details:** Implement `python run_visualization_demo.py` to load saved state history and demonstrate visualization.
+- **Condition:** Demo script runs without errors and shows live updates.
+- **Answer:** Demo Highlights: `Replay from file, Volume Rendering Controls, Graph Exploration, Timeline Scrubbing.`
 
 ## Phase 6 Details
 
 ### train-script-details
-- **Condition:** `train.py` parses arguments using `argparse`. Includes args for model config path, dataset config path, NTM variant, DC enable/disable, learning rate, batch size, epochs, checkpoint dir, resume path, logging framework, visualize flag.
+- **Technical Details:** Implement `train.py` to parse arguments and call DC search.
+- **Condition:** Running `python train.py --help` shows expected arguments.
+- **Answer:** Command-line Arguments: `model_config_path`, `data_config_path`, `memory_variant`, `dc_enable`, `learning_rate`, `batch_size`, `epochs`, `checkpoint_dir`, `resume_path`, `visualize`, `wandb_log`.
 
 ### train-integration-details
-- **Condition:** `train.py` correctly imports and initializes KAN model, chosen NTM module, optional DreamCoder components, `ARCDataset`, AdamW optimizer, LR scheduler (e.g., warmup+cosine), and combined loss function based on parsed arguments/config files.
+- **Technical Details:** Implement `train.py` to correctly initialize all components.
+- **Condition:** `train.py` successfully initializes all components without error.
+- **Answer:** Components Initialized: KAN, NTM, DreamCoder, Dataset, Optimizer, Scheduler, Logger, StateTracker
 
 ### train-loop-logic-details
-- **Condition:** Main loop iterates epochs. Inner loop iterates batches from `DataLoader`. Calls `train_step` (includes `optimizer.zero_grad()`, `loss.backward()`, `clip_grad_norm_`, `optimizer.step()`, `scheduler.step()`). Calls `eval_step` periodically. Logs train/val loss and metrics using chosen logger (e.g., `wandb.log({...})`).
+- **Technical Details:** Implement `run_training_loop` to execute training loop.
+- **Condition:** Training loss decreases over initial batches.
 - **Answer:** Logging: `WandB`
 
 ### train-checkpointing-details
-- **Condition:** Checkpoint dictionary includes `'epoch'`, `'model_state_dict'`, `'optimizer_state_dict'`, `'scheduler_state_dict'`, `'best_val_metric'`, optionally `'dreamcoder_library'`. Saving occurs every N epochs and when `val_metric` improves. Resuming correctly loads all these states.
-- **Answer:** Save Frequency: `Every 5 epochs + Best validation Pass@2`
+- **Technical Details:** Implement checkpoint saving and loading.
+- **Condition:** Checkpoints are saved and loaded correctly.
+- **Answer:** Save Frequency: `Every 5 epochs + Best val_pass_at_2`
 
 ### train-early-stopping-details
-- **Condition:** Training loop checks if `current_val_metric` hasn't improved vs `best_val_metric` for `config.early_stopping_patience` epochs. If so, `break` loop.
+- **Technical Details:** Implement early stopping logic.
+- **Condition:** Training stops early when validation metric doesn't improve.
 - **Answer:** Metric: `val_pass_at_2` (higher is better); Patience: `50`
 
 ### train-ada-details
-- **Condition:** (Advanced) If implemented, code shows mechanism for adjusting computation (e.g., changing KAN active layers, NTM read/write frequency) based on task properties or internal model states.
+- **Technical Details:** Implement adaptive computation logic.
+- **Condition:** Adaptive computation logic is implemented and tested.
 - **Answer:** Strategy: `Not Implemented`
 
 ### eval-script-details
-- **Condition:** `evaluate.py` exists. Parses args for checkpoint path, dataset source (`arc2_public_eval`, `arc2_semi_private_eval`), output results path, number of attempts (`k` for Pass@k).
+- **Technical Details:** Implement `evaluate.py` to calculate Pass@2.
+- **Condition:** `evaluate.py` correctly calculates Pass@2.
+- **Answer:** Pass@2 Logic: `Model outputs ranked list of predictions or runs twice stochastically. Check if top 1 or top 2 prediction matches ground truth grid exactly.`
 
 ### eval-inference-details
-- **Condition:** Script loads model state dict. Sets `model.eval()`. Uses `torch.no_grad()`. Iterates specified dataset via `DataLoader`. For each task, calls `model(task['test'][0]['input'])` (potentially `k` times if stochastic or multiple outputs needed for Pass@k). Stores predictions.
-- **Answer:** Eval Datasets: `arc2_public_eval` primarily.
+- **Technical Details:** Implement `evaluate.py` to run inference on ARC AGI 2 eval sets.
+- **Condition:** `evaluate.py` runs without CUDA errors and calculates Pass@2.
+- **Answer:** Eval Datasets: `arc2_public_eval`, `arc2_semi_private_eval`
 
 ### eval-metrics-details
-- **Condition:** Script compares prediction(s) for each task to `task['test'][0]['output']`. Implements Pass@k check (correct if any of first `k` predictions match ground truth exactly). Calculates overall `% Pass@2`. Saves per-task pass/fail results to output file.
+- **Technical Details:** Implement `evaluate.py` to calculate Pass@2 and overall accuracy.
+- **Condition:** `evaluate.py` correctly calculates Pass@2 and overall accuracy.
 - **Answer:** Pass@2 Logic: `Model's primary output is attempt 1. If model can generate alternative, that's attempt 2. Check if prediction1 == target OR prediction2 == target.`
 
 ### eval-comparison-details
-- **Condition:** (Optional) Evaluation script includes known scores for baselines (e.g., human average, o3 scores from ARC Prize website) for comparison in the output report.
+- **Technical Details:** Implement optional comparison against baseline scores.
+- **Condition:** Optional comparison against baseline scores is implemented.
+- **Answer:** Comparison Logic: `Model's primary output is attempt 1. If model can generate alternative, that's attempt 2. Check if prediction1 == target OR prediction2 == target.`
 
 ### ablation-plan-details
-- **Condition:** `docs/ablation_plan.md` exists. Contains table: `Experiment Name | Component Varied | Configuration | Dataset Subset | Metric | Status | Results Summary`.
+- **Technical Details:** Implement `docs/ablation_plan.md` to list planned experiments.
+- **Condition:** `docs/ablation_plan.md` exists and lists planned experiments.
+- **Answer:** Key Findings Summary: `[Updated with findings as runs complete]`
 
 ### ablation-run-details
-- **Condition:** Scripts allow running specific ablation configurations (e.g., `python train.py --config configs/ablation_no_ntm.yaml`). Results are logged to separate directories/WandB runs and summary updated in `docs/ablation_plan.md`.
-- **Answer:** Key Findings Summary: `[Updated regularly as ablations complete]`
+- **Technical Details:** Implement `train.py` with ablation config files.
+- **Condition:** Running `train.py --config configs/ablation_no_ntm.yaml` produces results logged to distinct WandB runs.
+- **Answer:** Key Findings Summary: `[Updated with findings as runs complete]`
 
 ### refine-analysis-details
-- **Condition:** Team meetings or issue discussions reference specific logs, evaluation reports, visualization screenshots, or ablation results to justify proposed changes.
+- **Technical Details:** Implement `refine_analysis.py` to analyze training logs, evaluation results, visualization insights, and ablation studies.
+- **Condition:** `refine_analysis.py` correctly analyzes the project state and suggests improvements.
+- **Answer:** Analysis Logic: `Team meetings or issue discussions reference specific evidence to justify proposed changes.`
 
 ### refine-iteration-details
-- **Condition:** Significant changes (e.g., major architecture modification) are developed on `experiment/*` branches with clear goals. PRs reference the analysis motivating the change.
+- **Technical Details:** Implement `refine_iteration.py` to develop significant changes on experiment branches.
+- **Condition:** Significant changes are developed on experiment branches.
+- **Answer:** Significant Changes: `[List changes]`
 
 ## Phase 7 Details
 
 ### final-performance-details
-- **Condition:** Running `python evaluate.py --checkpoint <best_model.pt> --dataset arc2_public_eval` (or designated validation set) reports Pass@2 >= 80%.
+- **Technical Details:** Implement `evaluate.py` to run inference on ARC AGI 2 eval sets.
+- **Condition:** `evaluate.py` correctly calculates Pass@2.
 - **Answer:** Final Score: `____% Pass@2` on `arc2_public_eval`
 
 ### final-cleanup-code-details
-- **Condition:** Run static analysis tools (`flake8`, `mypy` optional). Review code manually for unused variables/functions/imports. Remove commented-out code blocks. Delete obsolete experiment branches.
+- **Technical Details:** Implement `final_cleanup.py` to remove dead code, experimental branches, and unused files.
+- **Condition:** Dead code, experimental branches, and unused files are removed.
+- **Answer:** Dead Code Removed: `[List removed files/functions]`
 
 ### final-cleanup-comments-details
+- **Technical Details:** Implement `final_cleanup.py` to ensure all code is well-commented/docstringed.
 - **Condition:** All public functions/classes have docstrings explaining purpose, args, returns. Complex algorithms or non-obvious code sections have explanatory comments.
+- **Answer:** Commented Code: `[List commented sections]`
 
 ### final-docs-update-details
-- **Condition:** `README.md` accurately reflects the final project state and features. Instructions in `docs/` for setup, training, evaluation, visualization are verified to work with the final codebase.
+- **Technical Details:** Implement `final_docs_update.py` to update all documentation.
+- **Condition:** `README.md`, `GIT_GUIDELINES.md`, and `docs/` are accurate and complete.
+- **Answer:** Documentation Updated: `[List updated files]`
 
 ### final-reproducibility-details
-- **Condition:** A new collaborator can clone the repo, create the environment from the requirements file, download data (if needed, based on docs), and successfully run `train.py` (short test run) and `evaluate.py` using documented commands.
+- **Technical Details:** Implement `final_reproducibility.py` to ensure reproducibility.
+- **Condition:** A new collaborator can clone the repo, create the environment, download data, and successfully run `train.py` and `evaluate.py`.
+- **Answer:** Confirm Reproducibility: `Yes` by `[Collaborator Name]` on `[Date]`
 
 ### final-paper-draft-details
-- **Condition:** A paper draft exists (`paper/main.tex` or shared doc). Includes all standard sections relevant to the work.
+- **Technical Details:** Implement `final_paper_draft.py` to draft the research paper.
+- **Condition:** Paper draft exists and is complete.
+- **Answer:** Paper Draft: `[Paste Paper Draft Link]`
 
 ### final-paper-content-details
-- **Condition:** Draft includes generated figures (model diagrams, result plots, visualizations), tables (results, ablations), and discusses related work, methodology, findings.
+- **Technical Details:** Implement `final_paper_content.py` to include figures, tables, and discussions.
+- **Condition:** Paper includes generated figures, tables, and discussions.
+- **Answer:** Paper Content: `[Paste Paper Content Link]`
 
 ### final-paper-finalize-details
-- **Condition:** Paper proofread, formatted for target venue (e.g., NeurIPS, ICML, arXiv), references checked. Ready for submission.
+- **Technical Details:** Implement `final_paper_finalize.py` to proofread and finalize the paper.
+- **Condition:** Final paper is proofread and formatted for submission.
+- **Answer:** Final Paper: `[Paste Final Paper Link]`
 
 ### final-submission-package-details
-- **Condition:** If submitting to Kaggle, `submission.zip` or Dockerfile created according to ARC Prize 2025 rules. Includes necessary code, model checkpoint, and inference script.
+- **Technical Details:** Implement `final_submission_package.py` to package the code for submission.
+- **Condition:** Submission package is created according to ARC Prize rules.
+- **Answer:** Submission Package: `[Paste Submission Package Link]`
 
 ### final-submission-test-details
-- **Condition:** Packaged solution tested locally simulating the platform environment (e.g., build and run Docker container, run inference script within limits).
+- **Technical Details:** Implement `final_submission_test.py` to test the submission package.
+- **Condition:** Submission package is tested locally and passes all checks.
+- **Answer:** Test Results: `[Paste Test Results Link]`
 
 ### final-submission-action-details
-- **Condition:** Submission uploaded to the platform. Confirmation page or email received.
+- **Technical Details:** Implement `final_submission_action.py` to submit the solution.
+- **Condition:** Submission is uploaded to the platform and confirmed as received.
+- **Answer:** Submission Confirmation: `[Paste Submission Confirmation Link]`
 
 ### final-release-license-details
-- **Condition:** `LICENSE` file exists in the root directory containing the text of a chosen open-source license (e.g., MIT, Apache 2.0).
+- **Technical Details:** Implement `final_release_license.py` to add the LICENSE file.
+- **Condition:** LICENSE file exists and contains full text of MIT or Apache 2.0 license.
+- **Answer:** License: `Apache 2.0`
 
 ### final-release-push-details
-- **Condition:** `git status` is clean on `main`. `git push origin main` completes successfully. Public repository reflects the final state.
+- **Technical Details:** Implement `final_release_push.py` to push the final code and documentation to the public repository.
+- **Condition:** `git status` on `main` is clean. `git push origin main` completes successfully. Public repository reflects the final state.
+- **Answer:** Push Completed: `Yes`
 
 ### final-release-tag-details
+- **Technical Details:** Implement `final_release_tag.py` to create and push the final release tag.
 - **Condition:** `git tag -a v1.0.0 -m "Stable release for ARC AGI 2 submission"` command executed. `git push origin v1.0.0` command executed successfully. Tag appears on GitHub releases page.
+- **Answer:** Tag Created and Pushed: `v1.0.0`
